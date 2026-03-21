@@ -279,7 +279,7 @@ private:
      * by directly access the current TD slot. */
     bool DoesUndoRecMatchCurrPageForUncommittedRec(bool isDeleted, bool &pageRollbackSkip);
     /* For rollback to consistent point when backup restore that TD may has already been reused. We cannot retrieve
-     * transaction status in current TD slot untill we rollback TD first to the current transaction. Thus we have
+     * transaction status in current TD slot until we rollback TD first to the current transaction. Thus we have
      * to skip transaction status checking for now. */
     bool DoesUndoRecMatchCurrPageForCommittedRec(bool isDeleted);
 };

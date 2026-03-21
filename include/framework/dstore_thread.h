@@ -92,7 +92,7 @@ union ThreadCorePad {
 };
 
 /**
- * Same as PGXACT, we seperate the xact and status is
+ * Same as PGXACT, we separate the xact and status is
  * because xact should be as tidy as possible to avoid multiple cacheline read
  */
 struct ThreadXact {
@@ -306,7 +306,7 @@ public:
     bool AllTransactionsHold2PLockMoreThan(const struct LockTag &tag, LockMode mode, LockMgrType mgrType,
                                            uint32 cnt) const;
     RetStatus ActuallyAcquireLazyLocksOnCurrentThread();
-    void ReleaseAllTranscationLocks();
+    void ReleaseAllTransactionLocks();
     DstoreMemoryContext GetTransactionMemoryContext();
     DstoreMemoryContext GetQueryMemoryContext();
     DstoreMemoryContext GetTopTransactionMemoryContext();

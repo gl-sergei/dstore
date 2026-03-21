@@ -16,10 +16,10 @@
  *
  * ---------------------------------------------------------------------------------------
  *
- * dstore_partiton_fsm.cpp
+ * dstore_partition_fsm.cpp
  *
  * IDENTIFICATION
- *        src/fsm/dstore_partiton_fsm.cpp
+ *        src/fsm/dstore_partition_fsm.cpp
  *
  * ---------------------------------------------------------------------------------------
  */

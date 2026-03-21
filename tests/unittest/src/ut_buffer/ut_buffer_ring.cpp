@@ -414,7 +414,7 @@ TEST_F(BufferRingTest, ConstructAndDestructorTest)
     for(int i = 0; i < ringBuf->ringSize; i++) {
         ASSERT_EQ(ringBuf->bufferDescArray[i], INVALID_BUFFER_DESC);
     }
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     ASSERT_EQ(ringBuf, nullptr);
 
     ringBuf = CreateBufferRing(BAS_BULKWRITE);
@@ -423,7 +423,7 @@ TEST_F(BufferRingTest, ConstructAndDestructorTest)
     for(int i = 0; i < ringBuf->ringSize; i++) {
         ASSERT_EQ(ringBuf->bufferDescArray[i], INVALID_BUFFER_DESC);
     }
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     ASSERT_EQ(ringBuf, nullptr);
 
     ringBuf = CreateBufferRing(BAS_VACUUM);
@@ -495,7 +495,7 @@ TEST_F(BufferRingTest, ReuseBaseBufSucceededTest)
     CheckRingBuffer(crBuffer2, curPos++, true, ringBuf);
     bufferPool->UnlockAndRelease(baseBuffer2);
 
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     bufferPool->Destroy();
     delete bufferPool;
 }
@@ -534,7 +534,7 @@ TEST_F(BufferRingTest, MakeFreeFailedTest_1)
     ReadBaseBufMakeFreeFailed(pageId, curPos, ringBuf, false, buffers[6]);
     FAULT_INJECTION_INACTIVE(DstoreBufMgrFI::BUFRING_MAKE_CR_FREE_FAIL, FI_GLOBAL);
 
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     bufferPool->Destroy();
     delete bufferPool;
 }
@@ -589,7 +589,7 @@ TEST_F(BufferRingTest, MakeFreeFailedTest_2)
     ASSERT_EQ(ringBuf->bufferDescArray[curPos - 1], INVALID_BUFFER_DESC); /* reuse failed, remove from buffer ring. */
     FAULT_INJECTION_INACTIVE(DstoreBufMgrFI::BUFRING_TRY_FLUSH_FAIL, FI_GLOBAL);
 
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     bufferPool->Destroy();
     delete bufferPool;
 }
@@ -655,7 +655,7 @@ TEST_F(BufferRingTest, ReuseFailedTest_1)
     pageId = {FAKE_FILES[1].file_id, blockNum++};
     ReuseCrBufFaileBufHasInHashTable(pageId, curPos, ringBuf, false, buffers[curPos + 2]);
 
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     bufferPool->Destroy();
     delete bufferPool;
 }
@@ -720,7 +720,7 @@ TEST_F(BufferRingTest, ReuseFailedTest_2)
     pageId = {FAKE_FILES[1].file_id, blockNum++};
     ReuseCrBufFaileBufHasInHashTable(pageId, curPos, ringBuf, true, buffers[curPos]);
 
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     bufferPool->Destroy();
     delete bufferPool;
 }
@@ -760,7 +760,7 @@ TEST_F(BufferRingTest, ReuseFailed_ResetBufferInRing)
         bufferPool->Release(buffers[blockNum]);
     }
 
-    DestoryBufferRing(&ringBuf);
+    DestroyBufferRing(&ringBuf);
     bufferPool->Destroy();
     delete bufferPool;
 }
@@ -824,7 +824,7 @@ TEST_F(BufferRingTest, MultiThreadReadBufferMixingTest)
     }
     for (uint32 i = 0; i < threadSize; i++) {
         if (context[i].ringBuf != nullptr) {
-            DestoryBufferRing(&context[i].ringBuf);
+            DestroyBufferRing(&context[i].ringBuf);
         }
     }
 

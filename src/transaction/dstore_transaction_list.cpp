@@ -52,7 +52,7 @@ void TransactionList::Destroy()
     SetPdbId(INVALID_PDB_ID);
 }
 
-void TransactionList::ReleaseLocksInAllTranscationRes()
+void TransactionList::ReleaseLocksInAllTransactionRes()
 {
     Transaction *curTransaction = m_activeTransaction;
     while (curTransaction != nullptr) {

@@ -406,14 +406,14 @@ RetStatus ObjSpaceMgrTask::ExecuteRecycleBtreeTask() const
     /* Obtain a current transaction and set corresponding snapshot csn */
     Transaction *curTransaction = thrd->GetActiveTransaction();
     if (unlikely(curTransaction == nullptr)) {
-        ErrLog(DSTORE_ERROR, MODULE_INDEX, ErrMsg("Failed to get the transcation in ExecuteRecycleBtreeTask"));
+        ErrLog(DSTORE_ERROR, MODULE_INDEX, ErrMsg("Failed to get the transaction in ExecuteRecycleBtreeTask"));
         return DSTORE_FAIL;
     }
 
     /* Start the transaction and obtain a valid snapshotcsn for recycle */
     if (STORAGE_FUNC_FAIL(curTransaction->Start())) {
         ErrLog(DSTORE_ERROR, MODULE_INDEX,
-            ErrMsg("Failed to start the internal transcation in ExecuteRecycleBtreeTask"));
+            ErrMsg("Failed to start the internal transaction in ExecuteRecycleBtreeTask"));
         return DSTORE_FAIL;
     }
     (void)curTransaction->SetSnapshotCsn();
@@ -508,10 +508,10 @@ RetStatus ObjSpaceMgrTask::ExecuteRecycleBtreeTask() const
 
     StorageTableInterface::DestroyBtreeSmgr(fakeIndexRel.btreeSmgr);
 
-    /* Commit the transcation when we are done with the unlink process */
+    /* Commit the transaction when we are done with the unlink process */
     if (STORAGE_FUNC_FAIL(curTransaction->Commit())) {
         ErrLog(DSTORE_ERROR, MODULE_INDEX,
-            ErrMsg("Failed to commit the internal transcation in ExecuteRecycleBtreeTask"));
+            ErrMsg("Failed to commit the internal transaction in ExecuteRecycleBtreeTask"));
         return DSTORE_FAIL;
     }
 

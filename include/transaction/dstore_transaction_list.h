@@ -52,7 +52,7 @@ public:
     RetStatus ActuallyAcquireLazyLocksOnCurrentThread();
     bool AllTransactionsHold2PLockMoreThan(const struct LockTag &tag, LockMode mode, LockMgrType mgrType,
         uint32 cnt) const;
-    void ReleaseLocksInAllTranscationRes();
+    void ReleaseLocksInAllTransactionRes();
 
     Transaction     *m_activeTransaction;
 private:

@@ -641,7 +641,7 @@ TEST_F(UTBtree, UnlinkPageTest_level0)
     int numAttrs = sizeof(indexCols) / sizeof(int);
     m_utTableHandler->CreateIndex(indexCols, numAttrs, isUnique);
 
-    /* Insert & delete the same tuple, untill the page split */
+    /* Insert & delete the same tuple, until the page split */
     DefaultRowDef insertRow = m_utTableHandler->GetDefaultRowDef();
     ItemPointerData fakeHeapCtid = {{1, 1}, 1};
     PageId leafPageIds[4];

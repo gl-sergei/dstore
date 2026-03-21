@@ -162,7 +162,7 @@ PageId IndexNormalSegment::AllocIndexNormalSegment(PdbId pdbId, TablespaceId tab
     }
 
     /* Step 2. Init segment meta page */
-    /* It's OK to hold lock for segMetaPageBuf untill all initialization process finish because no one would know
+    /* It's OK to hold lock for segMetaPageBuf until all initialization process finish because no one would know
      * or access segMetaPageId before we return */
     if (STORAGE_FUNC_FAIL(InitIndexSegMetaInfo(pdbId, bufMgr, segMetaPageId, isReuseFlag))) {
         ErrLog(DSTORE_ERROR, MODULE_SEGMENT, ErrMsg("Index data segment(%hu, %u) init meta info failed.",

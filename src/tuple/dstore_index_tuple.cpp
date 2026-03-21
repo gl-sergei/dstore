@@ -63,7 +63,7 @@ inline void CompareInputCheck(IndexTuple *tuple1, IndexTuple *tuple2, __attribut
 int IndexTuple::Compare(IndexTuple *tuple1, IndexTuple *tuple2, IndexInfo *indexInfo)
 {
     StorageAssert(indexInfo != nullptr);
-    int result;
+    int result = 0;
     TupleDesc tupleDesc = indexInfo->attributes;
     int16 *indoption = indexInfo->indexOption;
     uint16 nkeyatts = indexInfo->indexKeyAttrsNum;

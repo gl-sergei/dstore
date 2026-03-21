@@ -104,7 +104,7 @@ void HeapScanHandler::ReScan()
         m_ringBuf = CreateBufferRing(BufferAccessType::BAS_BULKREAD);
         StorageReleasePanic(m_ringBuf == nullptr, MODULE_HEAP, ErrMsg("Invalid buffer ring."));
     } else if (unlikely(!m_useRingBuf && m_ringBuf != nullptr)) {
-        DestoryBufferRing(&m_ringBuf);
+        DestroyBufferRing(&m_ringBuf);
         StorageReleasePanic(m_ringBuf != nullptr, MODULE_HEAP, ErrMsg("Buffer ring is not null."));
     }
 
@@ -173,7 +173,7 @@ void HeapScanHandler::End() noexcept
     m_segScanContext = nullptr;
 
     if (m_ringBuf != nullptr) {
-        DestoryBufferRing(&m_ringBuf);
+        DestroyBufferRing(&m_ringBuf);
         StorageReleasePanic(m_ringBuf != nullptr, MODULE_HEAP, ErrMsg("Buffer ring is not null."));
     }
 
@@ -608,7 +608,7 @@ RetStatus HeapScanHandler::StatTupleByInplaceUpdate(HeapSampleScanContext *sampl
     bool isInProgress, int &liveRows, int &numTuples)
 {
     /*
-     * For inplace-updated tuple, we check it seperately. We have following cases:
+     * For inplace-updated tuple, we check it separately. We have following cases:
      *     1. Updated by an in-process or aborted transaction, fetch visible tuple from undo.
      *     2. Otherwise, count it as a live tuple and return it for later sampling.
      */

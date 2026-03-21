@@ -288,7 +288,7 @@ struct StorageGUC {
     int pageVersionCheckMode;       /* AntiCache : check pageVersion mode: off memory persistence */
     bool enablePageMissDirtyCheck;  /* AntiCache : whether check missing dirtry : off on */
     int maxPageVersionNum;          /* AntiCache : the max number of antiEntry */
-    int pageVersionPartitionNum;    /* AntiCache : the partiton number of anticache hashtable */
+    int pageVersionPartitionNum;    /* AntiCache : the partition number of anticache hashtable */
     bool enableStmtTrack;
     bool enableTrackIOTiming;
     double candidateSafePercent;

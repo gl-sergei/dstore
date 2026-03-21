@@ -540,8 +540,8 @@ void Transaction::Destroy()
         delete m_bufferPrivateRefCount;
         m_bufferPrivateRefCount = nullptr;
     }
-    if (m_lockResource.CheckForLockLeaks(m_isAutonomous ? "autonomous transcation destroy" : "transcation destroy")) {
-        ErrLog(DSTORE_WARNING, MODULE_TRANSACTION, ErrMsg("lock leaks in transcation destroy, force release here."));
+    if (m_lockResource.CheckForLockLeaks(m_isAutonomous ? "autonomous transaction destroy" : "transaction destroy")) {
+        ErrLog(DSTORE_WARNING, MODULE_TRANSACTION, ErrMsg("lock leaks in transaction destroy, force release here."));
 #ifndef UT
         m_lockResource.ReleaseAllLocks();
 #endif

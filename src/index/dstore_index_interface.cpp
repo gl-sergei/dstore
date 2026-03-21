@@ -109,7 +109,7 @@ static RetStatus IndexRelCheck(StorageRelation indexRel, const char *function)
 
     if (STORAGE_VAR_NULL(indexRel->btreeSmgr->m_segment)) {
         storage_set_error(INDEX_ERROR_UNEXPECTED_NULL_VALUE);
-        ErrLog(DSTORE_ERROR, MODULE_INDEX, ErrMsg("[%s] Unexpected nullptr in IndexRel \"dataSegment\".", function));
+        ErrLog(DSTORE_ERROR, MODULE_INDEX, ErrMsg("[%s] Unexpected nullptr in IndexRel \"m_segment\".", function));
         return DSTORE_FAIL;
     }
 

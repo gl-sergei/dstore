@@ -121,7 +121,7 @@
  *                  ResumeNodeList list = { 1, VNode2 };
  *                  ResumeDebugPoint(&debugPointId, &list);
  *              For more nodes: ResumeNodeList list = { 2, { VNode2, VNode3 } };
- *        * Important: ResumeDebugPoint() will wait untill all threads are
+ *        * Important: ResumeDebugPoint() will wait until all threads are
  *          resumed (either on all nodes or on the specified list).
  *
  * Debug point API uses unique debug point Id to control how and when the specified

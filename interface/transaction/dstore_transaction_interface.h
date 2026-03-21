@@ -50,9 +50,9 @@ void CleanUpResourceAfterCommit();
 void CleanUpResourceAfterAbort();
 
 /* Dangerous interface, just hack for v5 sql engine adapt */
-/* v5 sql will add transcation locks before transcation start, so we may not release them in abnormal case. Only call
+/* v5 sql will add transaction locks before transaction start, so we may not release them in abnormal case. Only call
    this interface before thread destroy */
-void ForceReleaseAllTranscationLocks();
+void ForceReleaseAllTransactionLocks();
 
 DSTORE::RetStatus AbortTrx(bool terminateCurrTrx = false, bool cleanUpResource = true);
 DSTORE::RetStatus CommitRollbackAndRestoreTrxState(bool isRollback);

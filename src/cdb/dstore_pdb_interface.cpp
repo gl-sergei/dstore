@@ -130,7 +130,7 @@ bool waitAllRollbackTaskFinished(DSTORE::PdbId pdbid)
     TransactionMgr *trans_mgr = pdb->GetTransactionMgr();
     if (STORAGE_VAR_NULL(trans_mgr)) {
         ErrLog(DSTORE_ERROR, MODULE_FRAMEWORK,
-               ErrMsg("[waitAllRollbackTaskFinished]Failed to get transcationMgr of pdb: %u.", pdbid));
+               ErrMsg("[waitAllRollbackTaskFinished]Failed to get transactionMgr of pdb: %u.", pdbid));
         return false;
     }
 

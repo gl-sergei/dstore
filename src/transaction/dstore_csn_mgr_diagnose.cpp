@@ -31,7 +31,7 @@ using namespace DSTORE;
 CsnInfo *CsnMgrDiagnose::GetCsnInfo(uint32_t &csnInfoCnt)
 {
     if (unlikely(g_storageInstance->GetType() == StorageInstanceType::DISTRIBUTE_MEMORY)) {
-        ErrLog(DSTORE_ERROR, MODULE_TRANSACTION, ErrMsg("memory node doesn't not have transcation."));
+        ErrLog(DSTORE_ERROR, MODULE_TRANSACTION, ErrMsg("memory node does not have transaction."));
         return nullptr;
     }
     CsnMgr *csnMgr = g_storageInstance->GetCsnMgr();

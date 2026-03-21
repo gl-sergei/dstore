@@ -248,7 +248,7 @@ RetStatus BtreeScan::InitArrayCondition()
             StorageAssert(!(cur->skFlags & (SCAN_KEY_ROW_HEADER | SCAN_KEY_SEARCHNULL | SCAN_KEY_SEARCHNOTNULL)));
             /* If any arrays are null as a whole, we can quit right now since NULL equals to nothing. */
             if ((cur->skFlags & SCAN_KEY_ISNULL) != 0U) {
-                /* must set m_numArrCond to -1 to seperate from non-array-key case. */
+                /* must set m_numArrCond to -1 to separate from non-array-key case. */
                 m_numArrCond = -1;
                 return DSTORE_SUCC;
             }
@@ -859,7 +859,7 @@ ScanKey BtreeScan::SelectScanFuncForArgs(Oid leftType, Oid rightType, ScanKey op
     FillOpfamilyStratFmgrInfo(m_indexInfo->m_indexSupportProcInfo, leftType, rightType, operatorKey->skAttno,
                               strat, chosenKey->skFunc);
     if (unlikely(chosenKey->skFunc.fnOid == DSTORE_INVALID_OID)) {
-        storage_set_error(INDEX_ERROR_UNSUPPORTTED_DATA_TYPE, columnType);
+        storage_set_error(INDEX_ERROR_UNSUPPORTED_DATA_TYPE, columnType);
         ErrLog(DSTORE_ERROR, MODULE_INDEX,
             ErrMsg("failed to find compare function for type[%u] vs type[%u] on %s(column[%d])",
                    leftType, rightType, m_indexInfo->indexRelName, operatorKey->skAttno));
@@ -1102,7 +1102,7 @@ bool BtreeScan::MakePositioningKeys(ScanDirection dir)
             StorageAssert(keysCount + 1 == chosen->skAttno);
             MakePositioningKeysFillFmgrInfo(chosen, curattr, positioningKey->skFunc);
             if (unlikely(positioningKey->skFunc.fnOid == DSTORE_INVALID_OID)) {
-                storage_set_error(INDEX_ERROR_UNSUPPORTTED_DATA_TYPE, m_indexInfo->opcinType[chosen->skAttno - 1]);
+                storage_set_error(INDEX_ERROR_UNSUPPORTED_DATA_TYPE, m_indexInfo->opcinType[chosen->skAttno - 1]);
                 m_keysConflictFlag = false;
                 return false;
             }

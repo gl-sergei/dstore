@@ -963,7 +963,7 @@ RetStatus BtreeBuild::AddPageDownlinkToParent(BtreePageLevelBuilder *currLevel)
                       parentLevel->currPageBuf->GetPageId().m_blockId,
                       OffsetNumberNext(parentLevel->lastItemOffset)));
     } else {
-        storage_set_error(INDEX_ERROR_FOR_INVLAID_LAST_HIKEY);
+        storage_set_error(INDEX_ERROR_FOR_INVALID_LAST_HIKEY);
         ErrLog(DSTORE_ERROR, MODULE_INDEX, ErrMsg("last hikey is invalid for {%d, %u} in level %u" BTR_PAGE_HEADER_FMT
             BTR_PAGE_LINK_AND_STATUS_FMT, currPage.GetPageId().m_fileId, currPage.GetPageId().m_blockId,
             currLevel->level, BTR_PAGE_HEADER_VAL(currPage.GetPage()),

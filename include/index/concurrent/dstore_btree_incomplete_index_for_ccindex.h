@@ -120,7 +120,7 @@ public:
      *
      * The concurrent DELETION that happened when ccindex is under merging phase may fail to find its deleting target
      * because of a postponed delta DML merging that a committed insertion may be still in the DeltaDmlTable waiting
-     * for merging to the btree, so that we cannot find the record in btree untill the merging finished.
+     * for merging to the btree, so that we cannot find the record in btree until the merging finished.
      *
      * To deal with the deletion of a postponed merging insertion, we will directly insert the deleted index tuple to
      * the btree structure in this function, and skip the later insertion if heapCtid comflict detected by

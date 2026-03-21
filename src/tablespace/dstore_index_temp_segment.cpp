@@ -235,7 +235,7 @@ PageId IndexTempSegment::AllocIndexTempSegment(PdbId pdbId, TablespaceId tablesp
     }
 
     /* Step 2. Init segment meta page */
-    /* It's OK to hold lock for segMetaPageBuf untill all initialization process finish because no one would know
+    /* It's OK to hold lock for segMetaPageBuf until all initialization process finish because no one would know
      * or access segMetaPageId before we return */
     if (STORAGE_FUNC_FAIL(InitIndexTempSegMetaInfo(pdbId, bufMgr, segMetaPageId, isReuseFlag))) {
         return INVALID_PAGE_ID;

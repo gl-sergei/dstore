@@ -26,8 +26,8 @@ static ErrorDetails g_common_error_code_map[] = {
     [STORAGE_OK] = {"STORAGE_OK", ""},
     [ERROR_GET_CODE(COMMON_ERROR_UNDEFINED_ERROR)] =
         {"COMMON_ERROR_UNDEFINED_ERROR", "Undefined error"},
-    [ERROR_GET_CODE(COMMON_ERROR_NODE_UNREACHEABLE)] =
-        {"COMMON_ERROR_NODE_UNREACHEABLE", "Node (id=%u) cannot be reached"},
+    [ERROR_GET_CODE(COMMON_ERROR_NODE_UNREACHABLE)] =
+        {"COMMON_ERROR_NODE_UNREACHABLE", "Node (id=%u) cannot be reached"},
     [ERROR_GET_CODE(COMMON_ERROR_MEMORY_ALLOCATION)] =
         {"COMMON_ERROR_MEMORY_ALLOCATION", "Failed to allocate memory"},
     [ERROR_GET_CODE(COMMON_INFO_CONTACT_ENGINEER)] =

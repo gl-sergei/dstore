@@ -227,7 +227,7 @@ RetStatus TransactionMgr::WaitEndOfAllActiveTrxsEarlierThanSnapshot(CommitSeqNo 
         CommitSeqNo currentCsn = trxEntry->csn;
         if (trxEntry->xid != INVALID_XID.m_placeHolder) {
             ret = WaitForTransactionEnd(Xid(trxEntry->xid), trxFailed);
-            /* We don't care if the transaction failed. We just want to wait untill all active transactions end. */
+            /* We don't care if the transaction failed. We just want to wait until all active transactions end. */
             currentThrdTrxEnd = (ret == DSTORE_SUCC);
         } else if (currentCsn == INVALID_CSN || currentCsn > targetCsn) {
             /* No writing transaction yet. The thread local snapshot csn is greater than the targetCsn now, thus any

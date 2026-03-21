@@ -72,7 +72,7 @@ static inline int SimpleFutexWait(int *futexp, int expect, const struct timespec
         /* The value pointed to by uaddr was not equal to the expected value val at the time of the call */
         return 0;
     }
-    /* if occured EINTR (operation was interrupted by a signal) or ETIMEDOUT or other errors, return to caller */
+    /* if EINTR occurred (operation was interrupted by a signal) or ETIMEDOUT or other errors, return to caller */
     return errno;
 }
 

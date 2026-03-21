@@ -284,9 +284,9 @@ RetStatus ThreadContext::ActuallyAcquireLazyLocksOnCurrentThread()
     return m_transactionList.ActuallyAcquireLazyLocksOnCurrentThread();
 }
 
-void ThreadContext::ReleaseAllTranscationLocks()
+void ThreadContext::ReleaseAllTransactionLocks()
 {
-    m_transactionList.ReleaseLocksInAllTranscationRes();
+    m_transactionList.ReleaseLocksInAllTransactionRes();
 }
 
 DstoreMemoryContext ThreadContext::GetTransactionMemoryContext()
