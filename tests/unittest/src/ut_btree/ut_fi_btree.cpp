@@ -355,7 +355,7 @@ TEST_F(UTFiBtree, TestCrConstruct2_level0)
 
 /*
  * CrConstruct case 3
- * 1. insert and delete the same value untill split
+ * 1. insert and delete the same value until split
  * 2. rollback update once on left page
  * 3. delete the last tuple on left
  * 4. construct cr for right
@@ -520,7 +520,7 @@ TEST_F(UTFiBtree, TestCrConstruct3_level0)
 
 /*
  * CrAfterRecycle case 
- * 1. insert untill split
+ * 1. insert until split
  * 2. save snapshot1
  * 3. delete all
  * 4. insert to trigger prune, then rollback to make page empty

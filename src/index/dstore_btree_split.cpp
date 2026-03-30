@@ -1651,11 +1651,11 @@ RetStatus BtreeSplit::InsertUndoRecAndSetTd(uint8 tdID, OffsetNumber insOff, Btr
 }
 
 /*
- * Since none failure would be allowed once we starts a wal atomic group, here we seperate logging steps (including
+ * Since no failure would be allowed once we starts a wal atomic group, here we separate logging steps (including
  * Undo record and Wal record) into two phases.
  * In phase one, we deal with operations that might fail for non-coding reasons, such as memory failure or buffer
  * descriptor reading failure. We don't start a wal atomic group in phase one to avoid any possible interruption.
- * When we've succedded in all functions of phase one, we can step to phase two, start a wal atomic group, writing
+ * When we've succeeded in all functions of phase one, we can step to phase two, start a wal atomic group, writing
  * undo and wal records and update splitting page in the same wal atomic group.
  */
 RetStatus BtreeSplit::InsertUndoAndWalForSplitLeaf(IndexTuple *insTuple, SplitContext &splitCxt,
@@ -1716,7 +1716,7 @@ RetStatus BtreeSplit::InsertUndoAndWalForSplitLeaf(IndexTuple *insTuple, SplitCo
     }
     delete undoRec;
 
-    /* Undo record has written, no failured will be allow untill wal atomic group ends. */
+    /* Undo record has written, no failure will be allowed until wal atomic group ends. */
     UNUSED_VARIABLE(m_bufMgr->MarkDirty(m_splitBuf));
     UNUSED_VARIABLE(m_bufMgr->MarkDirty(m_newRightBuf));
     if (oldRightBuf != INVALID_BUFFER_DESC) {
@@ -1967,9 +1967,9 @@ WalRecord *BtreeSplit::GenerateSplitInsertInternalWal(IndexTuple *insTuple, cons
     return walData;
 }
 
-/* Generate Wal Record for new splitting right page. No need to seperate the case of "copy some of tuples from
+/* Generate Wal Record for new splitting right page. No need to separate the case of "copy some of tuples from
  * splitting target to the new right page" and the case of "copy some tuples to new right page and insert the new
- * tuple to new right page alse", because we will record the whole content on this page. It doesn't matter
+ * tuple to new right page also", because we will record the whole content on this page. It doesn't matter
  * that which case we hit here */
 WalRecord *BtreeSplit::GenerateNewRightWal()
 {

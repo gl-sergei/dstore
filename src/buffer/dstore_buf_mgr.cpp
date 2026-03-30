@@ -3989,7 +3989,7 @@ BufferRing CreateBufferRing(BufferAccessType strategyType)
     strategyObj->Init(strategyType, ringSize);
     return strategyObj;
 }
-void DestoryBufferRing(BufferRing *strategyObj)
+void DestroyBufferRing(BufferRing *strategyObj)
 {
     DstorePfreeExt(*strategyObj);
 }

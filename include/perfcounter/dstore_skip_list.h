@@ -571,7 +571,7 @@ private:
             }
         }
 
-        /* Update skiplist index level if needed. It must occured after that new node has been inserted completely. */
+        /* Update skiplist index level if needed. It must occurred after that new node has been inserted completely. */
         int indexLevel = m_indexLevel.load();
         while (indexLevel < topIndexLevel && !(m_indexLevel.compare_exchange_weak(indexLevel, topIndexLevel))) {
         }

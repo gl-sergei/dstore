@@ -334,7 +334,7 @@ TEST_F(UTTableOperationTest, ConcurrentTest)
     const int testTupleRowCount = 10;
     const int threadNum = TABLE_MAX_CNT;
     std::thread threads[threadNum];
-    std::thread transcationThread[threadNum * 3];
+    std::thread transactionThread[threadNum * 3];
 
     int ret = m_utTableOperate->CreateAllTable();
     EXPECT_EQ(ret, 0);
@@ -347,19 +347,19 @@ TEST_F(UTTableOperationTest, ConcurrentTest)
     ret = m_utTableOperate->CreateAllIndex();
     EXPECT_EQ(ret, 0);
     for (int i = 0; i < threadNum; ++i) {
-        transcationThread[i] = std::thread(Scan, static_cast<TableNameType>(i), testTupleRowCount, m_utTableOperate);
+        transactionThread[i] = std::thread(Scan, static_cast<TableNameType>(i), testTupleRowCount, m_utTableOperate);
     }
 
     for (int i = 0; i < threadNum; ++i) {
-        transcationThread[threadNum + i] =
+        transactionThread[threadNum + i] =
             std::thread(Update, static_cast<TableNameType>(i), testTupleRowCount, m_utTableOperate);
     }
 
     for (int i = 0; i < threadNum; ++i) {
-        transcationThread[threadNum * 2 + i] =
+        transactionThread[threadNum * 2 + i] =
             std::thread(Delete, static_cast<TableNameType>(i), testTupleRowCount, m_utTableOperate);
     }
     for (int i = 0; i < threadNum * 3; i++) {
-        transcationThread[i].join();
+        transactionThread[i].join();
     }
 }

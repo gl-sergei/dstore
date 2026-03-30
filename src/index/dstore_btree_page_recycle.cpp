@@ -372,7 +372,7 @@ RetStatus BtreePageRecycle::TryRegisterRecycleBtreeTask(const Xid createdXid, In
                                                         TablespaceId tbsId, const PageId segmentId, PdbId pdbId)
 {
     if (indexInfo->btrIdxStatus != BtrCcidxStatus::NOT_CCINDEX) {
-        /* Do not start recycle task untill ccindex finished */
+        /* Do not start recycle task until ccindex finished */
         return DSTORE_SUCC;
     }
     bool needRecycleBtreeTask =

@@ -147,7 +147,7 @@ RetStatus BtreeStorageMgr::Init(const PageId segmentId, TablespaceId tablespaceI
 BtrMeta *BtreeStorageMgr::GetBtrMeta(LWLockMode access, BufferDesc **desc)
 {
     if (m_btrMetaPageId == INVALID_PAGE_ID) {
-        storage_set_error(INDEX_ERROR_UNKOWN_META_PAGE, m_segMetaPageId.m_fileId, m_segMetaPageId.m_blockId);
+        storage_set_error(INDEX_ERROR_UNKNOWN_META_PAGE, m_segMetaPageId.m_fileId, m_segMetaPageId.m_blockId);
         ErrLog(DSTORE_PANIC, MODULE_INDEX,
                ErrMsg("Btree meta page id is unkown. segment is{%d, %u}", m_segMetaPageId.m_fileId,
                       m_segMetaPageId.m_blockId));

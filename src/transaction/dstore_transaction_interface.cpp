@@ -90,9 +90,9 @@ void CleanUpResourceAfterAbort()
     transaction->CleanUpResourceAfterAbort();
 }
 
-void ForceReleaseAllTranscationLocks()
+void ForceReleaseAllTransactionLocks()
 {
-    thrd->ReleaseAllTranscationLocks();
+    thrd->ReleaseAllTransactionLocks();
 }
 
 RetStatus AbortTrx(bool terminateCurrTrx, bool cleanUpResource)

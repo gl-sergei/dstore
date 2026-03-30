@@ -26,10 +26,10 @@ static ErrorDetails g_index_error_code_map[] = {
     [STORAGE_OK] = {"STORAGE_OK", ""},
     [ERROR_GET_CODE(INDEX_ERROR_FAIL_CREATE_BTREE_SMGR)] =
         {"INDEX_ERROR_FAIL_CREATE_BTREE_SMGR", "failed to create/init index segment. segment id is {%d, %u}"},
-    [ERROR_GET_CODE(INDEX_ERROR_UNKOWN_META_PAGE)] =
-        {"INDEX_ERROR_UNKOWN_META_PAGE", "btree meta page id is unkown. segment id is {%u, %u}"},
-    [ERROR_GET_CODE(INDEX_ERROR_UNSUPPORTTED_DATA_TYPE)] =
-        {"INDEX_ERROR_UNSUPPORTTED_DATA_TYPE", "unsupportted data type %u"},
+    [ERROR_GET_CODE(INDEX_ERROR_UNKNOWN_META_PAGE)] =
+        {"INDEX_ERROR_UNKNOWN_META_PAGE", "btree meta page id is unknown. segment id is {%u, %u}"},
+    [ERROR_GET_CODE(INDEX_ERROR_UNSUPPORTED_DATA_TYPE)] =
+        {"INDEX_ERROR_UNSUPPORTED_DATA_TYPE", "unsupported data type %u"},
     [ERROR_GET_CODE(INDEX_ERROR_NO_LIVE_ROOT_FOUND)] =
         {"INDEX_ERROR_NO_LIVE_ROOT_FOUND", "no live root page found in index \"%s\""},
     [ERROR_GET_CODE(INDEX_ERROR_ROOT_PAGE_LEVEL_MISMATCH)] =
@@ -90,8 +90,8 @@ static ErrorDetails g_index_error_code_map[] = {
          "failed to build global index for incorrect number of partition table manager"},
     [ERROR_GET_CODE(INDEX_ERROR_FAIL_FOR_HUGE_INDEX_TUPLE)] =
         {"INDEX_ERROR_FAIL_FOR_HUGE_INDEX_TUPLE", "tuple size %u is greater than max available space of btree %u"},
-    [ERROR_GET_CODE(INDEX_ERROR_FOR_INVLAID_LAST_HIKEY)] =
-        {"INDEX_ERROR_FOR_INVLAID_LAST_HIKEY", "failed for last page's hikey is invalid"},
+    [ERROR_GET_CODE(INDEX_ERROR_FOR_INVALID_LAST_HIKEY)] =
+        {"INDEX_ERROR_FOR_INVALID_LAST_HIKEY", "failed for last page's hikey is invalid"},
     [ERROR_GET_CODE(INDEX_ERROR_FAIL_DELETE_TUPLE_FOR_ALLOCATE_TDID)] =
         {"INDEX_ERROR_FAIL_DELETE_TUPLE_FOR_ALLOCATE_TDID", "delete tuple failed for allocate td id"},
     [ERROR_GET_CODE(INDEX_ERROR_FAIL_SEARCH_INSERT_FOR_PAGE_DAMAGED)] =

@@ -64,7 +64,7 @@ HeapInsertHandler::HeapInsertHandler(StorageInstance *instance, ThreadContext *t
 HeapInsertHandler::~HeapInsertHandler()
 {
     if (m_ringBuf != nullptr) {
-        DestoryBufferRing(&m_ringBuf);
+        DestroyBufferRing(&m_ringBuf);
         StorageReleasePanic(m_ringBuf != nullptr, MODULE_HEAP, ErrMsg("Buffer ring is not null."));
     }
 }
@@ -144,7 +144,13 @@ RetStatus HeapInsertHandler::SplitTupIntoChunks(HeapTuple *tuple)
     const uint32 linkTupHeaderSize = sizeof(HeapDiskTuple) + LINKED_TUP_CHUNK_EXTRA_HEADER_SIZE;
     /* maxChunkDataSize exclude header of tuple */
     const uint32 maxChunkDataSize = maxTupSpaceSize - linkTupHeaderSize;
-    /* Only count tuple data when caculate how many chunks */
+    if (unlikely(maxChunkDataSize == 0)) {
+        storage_set_error(COMMON_ERROR_MEMORY_ALLOCATION);
+        ErrLog(DSTORE_ERROR, MODULE_HEAP, ErrMsg("maxChunkDataSize is 0, maxTupSpaceSize(%u) <= linkTupHeaderSize(%u).",
+            maxTupSpaceSize, linkTupHeaderSize));
+        return DSTORE_FAIL;
+    }
+    /* Only count tuple data when calculate how many chunks */
     uint32 numTupChunks = ((diskTupSize - sizeof(HeapDiskTuple)) + maxChunkDataSize - 1) / maxChunkDataSize;
     m_tupChunks.m_chunksData = static_cast<HeapDiskTuple **>(DstorePalloc(sizeof(HeapDiskTuple *) * numTupChunks));
     m_tupChunks.m_chunksSize = static_cast<uint16 *>(DstorePalloc(sizeof(uint16) * numTupChunks));

@@ -929,7 +929,7 @@ RetStatus DataPage::RollbackTdOneXidAsNeed(
             if (unlikely(pageRollbackSkipCase)) {
                 StorageAssert(btrUndoContext->m_undoType == BtreeUndoContextType::PAGE_ROLLBACK);
                 /* hit all-same-key cases that we cannot handle when page rollback.
-                 * just skip it and wait untill asyn rollback finished */
+                 * just skip it and wait until async rollback finished */
                 break;
             }
         } else if (STORAGE_FUNC_FAIL(RollbackByUndoRec(&undoRecord))) {

@@ -1173,7 +1173,7 @@ struct BufferRingData {
 using BufferRing = struct BufferRingData *;
 
 extern BufferRing CreateBufferRing(BufferAccessType strategyType);
-extern void DestoryBufferRing(BufferRing *strategyObj);
+extern void DestroyBufferRing(BufferRing *strategyObj);
 
 } /* namespace DSTORE */
 
