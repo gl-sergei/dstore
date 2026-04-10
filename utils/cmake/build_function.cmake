@@ -197,10 +197,6 @@ function(GET_VERSIONSTR_FROMGIT ret)
     # get opengauss version from ${PROJECT_OPENGS_DIR}
     execute_process(
         COMMAND ${CMAKE_SOURCE_DIR}/${openGauss}/cmake/buildfunction.sh --get_raw_versionstr ${PROJECT_OPENGS_DIR} OUTPUT_VARIABLE OPENGAUSS_VERSION)
-    # get gaussdb kernel version from ${PROJECT_TRUNK_DIR}
-    # ${PROJECT_TRUNK_DIR} can be GaussDBKernel-server directory when compiled for commercial use,
-    # or openGauss-server directory for opensource use,
-    # the version can be different
     execute_process(
         COMMAND ${CMAKE_SOURCE_DIR}/${openGauss}/cmake/buildfunction.sh --s ${PROJECT_TRUNK_DIR} OUTPUT_VARIABLE GS_VERSION_STR)
     set(PG_VERSION "${PG_VERSION}" PARENT_SCOPE)
