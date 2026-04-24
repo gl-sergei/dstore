@@ -29,6 +29,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <random>
 
 DSTORE::PdbId UTBufferLockFree::m_pdbId = 1;
 uint16 UTBufferLockFree::m_fileId = 1;
@@ -244,5 +245,135 @@ TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpin)
     std::fflush(stdout);
 
     ASSERT_EQ(utTask->buffers[0].GetRefcount(), 0u);
+    delete[] workThrd;
+}
+
+/*
+ * Btree-lookup-shaped microbenchmark.
+ *
+ * Simulates crab-walk descent of a 3-level tree: every thread repeatedly
+ *
+ *   Pin(root)  ->  Pin(L1[c1])  ->  Unpin(root)
+ *              ->  Pin(L2[c1,c2])  ->  Unpin(L1[c1])  ->  Unpin(L2[c1,c2])
+ *
+ * where c1, c2 are thread-local PRNG draws. Root is hammered by every
+ * iteration (100% of reads), L1 is diluted by fanoutL1, L2 by
+ * fanoutL1 * fanoutL2 — the same heat gradient a real btree sees.
+ *
+ * Disabled by default; run explicitly:
+ *   UT_BENCH_THREADS=64 UT_BENCH_ITERS=1000000 \
+ *   UT_BENCH_FANOUT_L1=8 UT_BENCH_FANOUT_L2=16 \
+ *     ./unittest --gtest_also_run_disabled_tests \
+ *                --gtest_filter=*BenchBtreeLookup*
+ */
+struct UTBtreeBenchTree
+{
+    BufferDesc *root;
+    BufferDesc *level1;
+    BufferDesc *level2;
+    uint32 fanoutL1;
+    uint32 fanoutL2;
+    uint32 itersPerThread;
+};
+
+static void *RunTaskBtreeLookup(void *arg)
+{
+    BufferMgrFakeStorageInstance *instance = (BufferMgrFakeStorageInstance *)g_storageInstance;
+    instance->ThreadSetupAndRegister();
+    UTBtreeBenchTree *t = static_cast<UTBtreeBenchTree *>(arg);
+
+    std::mt19937 rng(static_cast<uint32>(reinterpret_cast<uintptr_t>(pthread_self())));
+    std::uniform_int_distribution<uint32> pickL1(0, t->fanoutL1 - 1);
+    std::uniform_int_distribution<uint32> pickL2(0, t->fanoutL2 - 1);
+
+    for (uint32 i = 0; i < t->itersPerThread; ++i) {
+        uint32 c1 = pickL1(rng);
+        uint32 c2 = pickL2(rng);
+        BufferDesc *n1 = &t->level1[c1];
+        BufferDesc *n2 = &t->level2[c1 * t->fanoutL2 + c2];
+
+        t->root->Pin();
+        n1->Pin();
+        t->root->Unpin();
+
+        n2->Pin();
+        n1->Unpin();
+        n2->Unpin();
+    }
+
+    instance->ThreadUnregisterAndExit();
+    return nullptr;
+}
+
+TEST_F(UTBufferLockFree, DISABLED_BenchBtreeLookup)
+{
+    const uint32 workThreads = GetEnvUint("UT_BENCH_THREADS", 64);
+    const uint32 iters = GetEnvUint("UT_BENCH_ITERS", 1000000);
+    const uint32 fanoutL1 = GetEnvUint("UT_BENCH_FANOUT_L1", 8);
+    const uint32 fanoutL2 = GetEnvUint("UT_BENCH_FANOUT_L2", 16);
+
+    const uint32 nL1 = fanoutL1;
+    const uint32 nL2 = fanoutL1 * fanoutL2;
+
+    UTBtreeBenchTree *tree = (UTBtreeBenchTree *)DstoreMemoryContextAlloc(
+        UTBufferLockFree::m_ut_memory_context, sizeof(UTBtreeBenchTree));
+    tree->fanoutL1 = fanoutL1;
+    tree->fanoutL2 = fanoutL2;
+    tree->itersPerThread = iters;
+    tree->root = (BufferDesc *)DstoreMemoryContextAlloc(
+        UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc));
+    tree->level1 = (BufferDesc *)DstoreMemoryContextAlloc(
+        UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc) * nL1);
+    tree->level2 = (BufferDesc *)DstoreMemoryContextAlloc(
+        UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc) * nL2);
+    StorageAssert(tree->root != nullptr && tree->level1 != nullptr && tree->level2 != nullptr);
+
+    uint32 pageIdx = 0;
+    auto initBuf = [&](BufferDesc *b) {
+        b->state = 0;
+        PageId pid{ 1, pageIdx++ };
+        BufferTag tag(1, pid);
+        b->bufTag = tag;
+    };
+    initBuf(tree->root);
+    for (uint32 i = 0; i < nL1; ++i) initBuf(&tree->level1[i]);
+    for (uint32 i = 0; i < nL2; ++i) initBuf(&tree->level2[i]);
+
+    std::thread *workThrd = new std::thread[workThreads];
+    auto t0 = std::chrono::steady_clock::now();
+    for (uint32 i = 0; i < workThreads; ++i) {
+        workThrd[i] = std::thread(RunTaskBtreeLookup, static_cast<void *>(tree));
+        pthread_setname_np(workThrd[i].native_handle(), "BenchBtreeLookup");
+    }
+    WaitTaskThrdFinish(workThrd, workThreads);
+    auto t1 = std::chrono::steady_clock::now();
+
+    double seconds = std::chrono::duration<double>(t1 - t0).count();
+    uint64 opsPerIter = 6; /* 3 pins + 3 unpins */
+    uint64 totalOps = static_cast<uint64>(workThreads) * iters * opsPerIter;
+    uint64 totalLookups = static_cast<uint64>(workThreads) * iters;
+    double opsPerSec = totalOps / seconds;
+    double lookupsPerSec = totalLookups / seconds;
+    double nsPerOp = (seconds * 1e9) / static_cast<double>(totalOps);
+
+    std::printf("[BenchBtreeLookup] threads=%u iters/thread=%u fanoutL1=%u fanoutL2=%u "
+                "lookups=%lu total_ops=%lu elapsed=%.3fs "
+                "lookups/sec=%.2fM ops/sec=%.2fM ns/op=%.2f\n",
+                workThreads, iters, fanoutL1, fanoutL2,
+                (unsigned long)totalLookups, (unsigned long)totalOps, seconds,
+                lookupsPerSec / 1e6, opsPerSec / 1e6, nsPerOp);
+    std::fflush(stdout);
+
+    /* Drain the arena before reading refcounts. */
+    auto drainAssert = [](BufferDesc *b) {
+        uint64 hdrState = b->LockHdr();
+        uint64 rc = b->GetRefcount();
+        b->UnlockHdr(hdrState);
+        ASSERT_EQ(rc, 0u);
+    };
+    drainAssert(tree->root);
+    for (uint32 i = 0; i < nL1; ++i) drainAssert(&tree->level1[i]);
+    for (uint32 i = 0; i < nL2; ++i) drainAssert(&tree->level2[i]);
+
     delete[] workThrd;
 }
