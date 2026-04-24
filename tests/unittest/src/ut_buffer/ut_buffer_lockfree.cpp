@@ -60,6 +60,7 @@ void *UTBufferLockFree::RunTaskPinUnpinBuffer(void *task)
         }
     }
     instance->ThreadUnregisterAndExit();
+    return nullptr;
 }
 
 void *UTBufferLockFree::RunTaskLockUnlockHeader(void *task)
@@ -78,6 +79,7 @@ void *UTBufferLockFree::RunTaskLockUnlockHeader(void *task)
         }
     }
     instance->ThreadUnregisterAndExit();
+    return nullptr;
 }
 
 void *UTBufferLockFree::RunTaskFastLockHeader(void *task)
@@ -100,6 +102,7 @@ void *UTBufferLockFree::RunTaskFastLockHeader(void *task)
         }
     }
     instance->ThreadUnregisterAndExit();
+    return nullptr;
 }
 
 TEST_F(UTBufferLockFree, TestPinAndUnPinBuffer)

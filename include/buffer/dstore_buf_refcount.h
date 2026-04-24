@@ -26,11 +26,17 @@ namespace DSTORE {
 struct PrivateRefCountEntry {
     BufferDesc *buffer;
     int32 refcount;
+    /* Index of the arena slot this (thread, buffer) pin occupies, or -1 if
+     * this thread's pin lives in state.refcount (CAS path). Set by
+     * PinInSharedArena, cleared by UnpinInSharedArena or by a reconciler
+     * drain via ApplyDeferredPins. */
+    int32 arenaSlotIdx;
 
     PrivateRefCountEntry()
     {
         buffer = INVALID_BUFFER_DESC;
         refcount = 0;
+        arenaSlotIdx = -1;
     }
 };
 
@@ -75,6 +81,22 @@ public:
      */
     PrivateRefCountEntry *MoveEntryToHashTable(bool found);
 
+    /*
+     * Shared-pin arena per-thread hints. Each entry remembers which slot in the
+     * arena this thread last used for the given partition, so PinInSharedArena
+     * can start probing from there and UnpinInSharedArena can usually hit on
+     * the first probe. -1 means "no hint yet".
+     */
+    int GetLastDeferredSlot(uint32 bucket) const
+    {
+        return m_lastDeferredSlots[bucket];
+    }
+
+    void SetLastDeferredSlot(uint32 bucket, int slot)
+    {
+        m_lastDeferredSlots[bucket] = slot;
+    }
+
 private:
    /*
     * Backend-Private refcount management:
@@ -104,6 +126,9 @@ private:
     HTAB* m_private_refcount_hash;
     int32 m_private_refcount_overflowed;
     uint32 m_private_refcount_clock;
+
+    /* Per-partition hint for last-used arena slot; see GetLastDeferredSlot. */
+    int m_lastDeferredSlots[Buffer::SHARED_PIN_NUM_PARTITIONS];
 
     /*
      * GetPrivateRefCountEntryFast

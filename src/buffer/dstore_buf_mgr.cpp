@@ -578,6 +578,12 @@ RetStatus BufMgr::Init()
      * if the configured buffer pool size is not divisible by the memchunk size or the number of LRU partitions.
      */
     InitMemChunkAndLru();
+
+    /* Shared-pin arena: singleton heap allocation used by BufferDesc pin/unpin
+     * fast paths to avoid CAS contention on hot buffers. Safe to run after
+     * memchunks; only Pin/Unpin paths read g_sharedPinArena and they tolerate
+     * nullptr by falling back to the plain CAS loop. */
+    Buffer::InitSharedPinArena();
     return DSTORE_SUCC;
 }
 
@@ -591,6 +597,8 @@ void BufMgr::Destroy()
 
     m_buftable->Destroy();
     delete m_buftable;
+
+    Buffer::DestroySharedPinArena();
 }
 
 BufferDesc *BufMgr::Read(const PdbId &pdbId, const PageId &pageId, UNUSE_PARAM BufferPoolReadFlag flag,

@@ -33,6 +33,185 @@
 
 namespace DSTORE {
 
+namespace Buffer {
+
+SharedPinArena *g_sharedPinArena = nullptr;
+
+void InitSharedPinArena()
+{
+    if (g_sharedPinArena != nullptr) {
+        return;
+    }
+    AutoMemCxtSwitch autoSwitch{g_storageInstance->GetMemoryMgr()->GetGroupContext(MEMORY_CONTEXT_BUFFER)};
+    g_sharedPinArena = DstoreNew(g_dstoreCurrentMemoryContext) SharedPinArena();
+    if (STORAGE_VAR_NULL(g_sharedPinArena)) {
+        ErrLog(DSTORE_PANIC, MODULE_BUFMGR, ErrMsg("alloc memory for shared pin arena failed"));
+        return;
+    }
+    /* Zero-init: an empty slot is 0 (a nullptr BufferDesc). */
+    for (uint32 p = 0; p < SHARED_PIN_NUM_PARTITIONS; ++p) {
+        for (uint32 s = 0; s < SHARED_PIN_SLOTS_PER_PARTITION * SHARED_PIN_SLOT_SPACING; ++s) {
+            GsAtomicWriteU64(&g_sharedPinArena->pins[p][s], 0);
+        }
+    }
+}
+
+void DestroySharedPinArena()
+{
+    if (g_sharedPinArena == nullptr) {
+        return;
+    }
+    delete g_sharedPinArena;
+    g_sharedPinArena = nullptr;
+}
+
+/* Map a BufferDesc pointer to one of SHARED_PIN_NUM_PARTITIONS partitions.
+ * BufferDescs are memchunk-contiguous; a plain pointer-modulo would cluster
+ * adjacent hot buffers. We shift off cacheline bits and mix with a
+ * splittable-random multiplier to scramble adjacency. NUM_PARTITIONS must be
+ * a power of two. */
+static inline uint32 DeferredSlotBucket(const BufferDesc *buf)
+{
+    static_assert((SHARED_PIN_NUM_PARTITIONS & (SHARED_PIN_NUM_PARTITIONS - 1)) == 0,
+                  "SHARED_PIN_NUM_PARTITIONS must be a power of two");
+    uint64 h = (reinterpret_cast<uintptr_t>(buf) >> 6) * 0x9E3779B97F4A7C15ULL;
+    return static_cast<uint32>((h >> 32) & (SHARED_PIN_NUM_PARTITIONS - 1));
+}
+
+static inline gs_atomic_uint64 *DeferredSlotPtr(uint32 bucket, uint32 slot)
+{
+    return &g_sharedPinArena->pins[bucket][slot * SHARED_PIN_SLOT_SPACING];
+}
+
+/* Try to publish a deferred pin for buf into this partition. Returns true on
+ * success, false if no empty slot could be found (caller must fall back to
+ * CAS). On success, records the slot index on entry->arenaSlotIdx so the
+ * matching UnpinInSharedArena knows exactly which slot to clear.
+ *
+ * entry must belong to (this thread, buf). On entry, entry->arenaSlotIdx must
+ * be -1 (no prior un-drained arena pin for this (thread, buf)). */
+static bool PinInSharedArena(BufferDesc *buf, PrivateRefCountEntry *entry)
+{
+    if (STORAGE_VAR_NULL(g_sharedPinArena) || entry == nullptr) {
+        return false;
+    }
+    StorageAssert(entry->arenaSlotIdx < 0);
+    BufPrivateRefCount *privateRefCount = thrd->GetBufferPrivateRefCount();
+    if (STORAGE_VAR_NULL(privateRefCount)) {
+        return false;
+    }
+
+    const uint32 bucket = DeferredSlotBucket(buf);
+    int hint = privateRefCount->GetLastDeferredSlot(bucket);
+    if (hint < 0) {
+        /* First attempt in this partition for this thread: scatter threads so
+         * they don't all start probing at slot 0. */
+        hint = static_cast<int>(thrd->GetThreadId() & (SHARED_PIN_SLOTS_PER_PARTITION - 1));
+    }
+
+    const uint64 bufU64 = reinterpret_cast<uint64>(buf);
+    for (uint32 i = 0; i < SHARED_PIN_SLOTS_PER_PARTITION; ++i) {
+        const uint32 idx = (static_cast<uint32>(hint) ^ i) & (SHARED_PIN_SLOTS_PER_PARTITION - 1);
+        uint64 expected = 0;
+        if (GsAtomicCompareExchangeU64(DeferredSlotPtr(bucket, idx), &expected, bufU64)) {
+            privateRefCount->SetLastDeferredSlot(bucket, static_cast<int>(idx));
+            entry->arenaSlotIdx = static_cast<int32>(idx);
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Clear the deferred pin for buf from the slot the matching PinInSharedArena
+ * claimed for this (thread, buf). Returns true on success, false if the slot
+ * no longer points to buf (drained by ApplyDeferredPins) — caller must then
+ * CAS-decrement state.refcount instead.
+ *
+ * Preconditions: entry must belong to (this thread, buf), entry->arenaSlotIdx
+ * must be >= 0 (an arena pin exists). On success, resets arenaSlotIdx to -1. */
+static bool UnpinInSharedArena(BufferDesc *buf, PrivateRefCountEntry *entry)
+{
+    if (STORAGE_VAR_NULL(g_sharedPinArena) || entry == nullptr) {
+        return false;
+    }
+    if (entry->arenaSlotIdx < 0) {
+        return false;
+    }
+
+    const uint32 bucket = DeferredSlotBucket(buf);
+    const uint64 bufU64 = reinterpret_cast<uint64>(buf);
+    gs_atomic_uint64 *slot = DeferredSlotPtr(bucket, static_cast<uint32>(entry->arenaSlotIdx));
+    uint64 expected = bufU64;
+    if (GsAtomicCompareExchangeU64(slot, &expected, 0)) {
+        entry->arenaSlotIdx = -1;
+        return true;
+    }
+    /* Slot no longer holds buf: ApplyDeferredPins drained it and folded our
+     * pin into state.refcount. The slot is not ours to touch anymore. */
+    entry->arenaSlotIdx = -1;
+    return false;
+}
+
+/* Must be called with BUF_LOCKED set on buf. Scans buf's partition, clears
+ * every slot that points to buf, and folds the count into the refcount (low
+ * 32 bits of state). Clears BUF_MAY_DEFER. Returns the post-reconcile state.
+ *
+ * Caller invariant: refcount field in the returned state is trustworthy for
+ * decisions like "can we evict this buffer?". */
+HOTFUNCTION uint64 ApplyDeferredPins(BufferDesc *buf)
+{
+    uint64 bufState = GsAtomicReadU64(&buf->state);
+    StorageAssert((bufState & BUF_LOCKED) != 0);
+
+    if ((bufState & BUF_MAY_DEFER) == 0) {
+        return bufState;
+    }
+    if (STORAGE_VAR_NULL(g_sharedPinArena)) {
+        /* Arena not allocated — nothing to reconcile; just clear the flag. */
+        while (true) {
+            uint64 expected = bufState;
+            uint64 newState = expected & ~BUF_MAY_DEFER;
+            if (GsAtomicCompareExchangeU64(&buf->state, &expected, newState)) {
+                return newState;
+            }
+            bufState = expected;
+        }
+    }
+
+    const uint32 bucket = DeferredSlotBucket(buf);
+    const uint64 bufU64 = reinterpret_cast<uint64>(buf);
+    uint64 reclaimed = 0;
+
+    /* A slot may contain buf multiple times if several threads deferred-pinned
+     * it; the inner while loop handles that. */
+    for (uint32 i = 0; i < SHARED_PIN_SLOTS_PER_PARTITION; ++i) {
+        gs_atomic_uint64 *slot = DeferredSlotPtr(bucket, i);
+        while (GsAtomicReadU64(slot) == bufU64) {
+            uint64 expected = bufU64;
+            if (GsAtomicCompareExchangeU64(slot, &expected, 0)) {
+                reclaimed++;
+            } else if (expected != bufU64) {
+                /* Slot was taken by someone else — stop scanning this slot. */
+                break;
+            }
+        }
+    }
+
+    /* Fold reclaimed into state.refcount + clear BUF_MAY_DEFER. BUF_LOCKED
+     * stops other pin/unpin CAS from committing, so this CAS should normally
+     * succeed first try; we still loop for safety. */
+    while (true) {
+        uint64 expected = bufState;
+        uint64 newState = (expected + reclaimed * BUF_REFCOUNT_ONE) & ~BUF_MAY_DEFER;
+        if (GsAtomicCompareExchangeU64(&buf->state, &expected, newState)) {
+            return newState;
+        }
+        bufState = expected;
+    }
+}
+
+} /* namespace Buffer */
+
 void BufferDescController::InitController()
 {
     LWLockInitialize(&ioInProgressLwlock.lock, LWLOCK_GROUP_BUF_DESC_IO_IN_PROGRESS);
@@ -119,7 +298,10 @@ HOTFUNCTION uint64 BufferDesc::LockHdr()
 
     AdjustSpinsPerDelay(&delayStatus, contentLwLock.spinsPerDelay);
     TsAnnotateRWLockAcquired(&state, 1);
-    return oldState | Buffer::BUF_LOCKED;
+    /* Drain any deferred pins from the shared-pin arena into state.refcount
+     * so the returned state is trustworthy for refcount-sensitive decisions.
+     * No-op (cheap read of BUF_MAY_DEFER) when the buffer isn't deferred. */
+    return Buffer::ApplyDeferredPins(this);
 }
 
 HOTFUNCTION void BufferDesc::UnlockHdr(uint64 flags)
@@ -154,8 +336,14 @@ bool BufferDesc::FastLockHdrIfReusable(const BufferTag &inBufTag, bool justValid
         return false;
     }
 
+    /* Drain deferred pins from the arena before trusting GetRefcount(). If we
+     * skipped this, a buffer with arena-only pins would look refcount==0 here
+     * and be wrongly reused. */
+    const uint64 reconciledState = Buffer::ApplyDeferredPins(this);
+
     bool isBufTagReusable = justValidTag ? (!bufTag.IsInvalid()) : (bufTag.IsInvalid() || bufTag != inBufTag);
-    if (this->GetRefcount() == 0 && isBufTagReusable && ((oldState & Buffer::BUF_IS_WRITING_WAL) == 0) &&
+    if ((reconciledState & Buffer::BUF_REFCOUNT_MASK) == 0 && isBufTagReusable &&
+        ((oldState & Buffer::BUF_IS_WRITING_WAL) == 0) &&
         !(ignoreDirtyPage && (oldState & (Buffer::BUF_CONTENT_DIRTY | Buffer::BUF_HINT_DIRTY)))) {
             /* Return with the header locked. */
             TsAnnotateRWLockAcquired(&state, 1);
@@ -192,7 +380,7 @@ HOTFUNCTION void BufferDesc::Pin()
     StorageAssert(privateRef != nullptr);
 
     if (privateRef->refcount == 0) {
-        SharedPin();
+        SharedPin(privateRef);
     }
 
     if (unlikely(privateRef->refcount > 0xffff)) {
@@ -209,27 +397,52 @@ HOTFUNCTION void BufferDesc::Pin()
  * Pin() is based on it when one thread has use it pin the first time,
  * because it involves race on Shared buffer modifing with other threads.
  * note: dont use it directly.
+ *
+ * Shared-pin arena fast path: once the refcount has crossed BUF_DEFER_THRESHOLD
+ * the buffer is tagged with BUF_MAY_DEFER. Subsequent pins publish themselves
+ * into the global SharedPinArena (each slot on its own cacheline) instead of
+ * CAS-mutating this buffer's state. Arena pins are invisible in state.refcount
+ * until a header-lock holder calls Buffer::ApplyDeferredPins.
  */
-HOTFUNCTION void BufferDesc::SharedPin()
+HOTFUNCTION void BufferDesc::SharedPin(PrivateRefCountEntry *entry)
 {
     uint64 bufState;
     for (;;) {
-        /* Increase refcount */
-        bufState = GsAtomicFetchAddU64(&state, Buffer::BUF_REFCOUNT_ONE);
+        bufState = GsAtomicReadU64(&state);
+
         if (bufState & Buffer::BUF_LOCKED) {
-            /* Decrease refcount */
-            bufState = GsAtomicSubFetchU64(&state, static_cast<int64>(Buffer::BUF_REFCOUNT_ONE));
-            (void)WaitHdrUnlock();
+            bufState = WaitHdrUnlock();
             continue;
         }
-        StorageAssert((bufState & Buffer::BUF_REFCOUNT_MASK) != Buffer::BUF_REFCOUNT_MASK);
-        break;
+
+        /* Hot path: publish pin into the arena instead of mutating state.
+         * entry == nullptr (PinForAio) forces CAS path. */
+        if (entry != nullptr && (bufState & Buffer::BUF_MAY_DEFER) != 0 &&
+            Buffer::PinInSharedArena(this, entry)) {
+            return;
+        }
+
+        /* Cold path: CAS-bump refcount. If the new refcount reaches the
+         * defer threshold, opportunistically set BUF_MAY_DEFER in the same
+         * CAS so future pinners see the flag. */
+        uint64 newState = bufState + Buffer::BUF_REFCOUNT_ONE;
+        if ((newState & Buffer::BUF_REFCOUNT_MASK) >= Buffer::BUF_DEFER_THRESHOLD) {
+            newState |= Buffer::BUF_MAY_DEFER;
+        }
+        if (GsAtomicCompareExchangeU64(&state, &bufState, newState)) {
+            StorageAssert((bufState & Buffer::BUF_REFCOUNT_MASK) != Buffer::BUF_REFCOUNT_MASK);
+            return;
+        }
+        /* CAS failed: bufState now has current state; retry from the top
+         * (which will re-check BUF_LOCKED). */
     }
 }
 
 HOTFUNCTION void BufferDesc::PinForAio()
 {
-    SharedPin();
+    /* AIO path does not maintain a per-thread PrivateRefCountEntry, so it
+     * cannot track an arena slot. Force the CAS path by passing nullptr. */
+    SharedPin(nullptr);
 }
 
 HOTFUNCTION void BufferDesc::PinUnderHdrLocked()
@@ -292,37 +505,66 @@ HOTFUNCTION void BufferDesc::Unpin()
         /* I'd better not still hold any locks on the buffer */
         StorageAssert(!LWLockHeldByMe(&contentLwLock));
         StorageAssert(!LWLockHeldByMe(controller->GetIoInProgressLwLock()));
-        SharedUnpin();
+        SharedUnpin(privateRef);
         privateRefCount->ForgetPrivateRefcountEntry(privateRef);
     }
 }
 
 /* better not to use it directly. the same as SharedPin */
-HOTFUNCTION void BufferDesc::SharedUnpin()
+HOTFUNCTION void BufferDesc::SharedUnpin(PrivateRefCountEntry *entry)
 {
 #ifndef ENABLE_THREAD_CHECK
-    StorageAssert(GetRefcount() > 0);
+    /* Sanity check: at least one of three signals must indicate a live pin
+     * for this buffer. (a) refcount > 0 means some thread's pin is in state;
+     * (b) BUF_MAY_DEFER set means arena-published pins may exist; (c) our
+     * own entry holds an arena slot. Read state once to avoid a TOCTOU race
+     * between the refcount check and the flag check. */
+    {
+        const uint64 snap = GsAtomicReadU64(&state);
+        StorageAssert((snap & Buffer::BUF_REFCOUNT_MASK) > 0 ||
+                      (snap & Buffer::BUF_MAY_DEFER) != 0 ||
+                      (entry != nullptr && entry->arenaSlotIdx >= 0));
+    }
 #endif
-    /* Decrement the shared reference count */
+
+    /* If this (thread, buffer) pin lives in the arena, try to clear its slot
+     * first. When the racing drainer already folded our slot into state, the
+     * slot no longer matches and UnpinInSharedArena returns false — we then
+     * fall through to CAS-decrement state.refcount. The check is keyed on
+     * entry->arenaSlotIdx (not on BUF_MAY_DEFER, which the drainer may have
+     * already cleared while our entry still points at the arena slot). */
+    if (entry != nullptr && entry->arenaSlotIdx >= 0) {
+        if (Buffer::UnpinInSharedArena(this, entry)) {
+            return;
+        }
+        /* UnpinInSharedArena reset arenaSlotIdx to -1; fall through to CAS. */
+    }
+
     uint64 bufState;
     for (;;) {
-        /* Increase refcount */
-        bufState = GsAtomicFetchSubU64(&state, Buffer::BUF_REFCOUNT_ONE);
+        bufState = GsAtomicReadU64(&state);
+
         if (bufState & Buffer::BUF_LOCKED) {
-            /* Decrease refcount */
-            bufState = GsAtomicAddFetchU64(&state, static_cast<int64>(Buffer::BUF_REFCOUNT_ONE));
-            (void)WaitHdrUnlock();
+            bufState = WaitHdrUnlock();
             continue;
         }
-        StorageReleasePanic(((bufState & Buffer::BUF_REFCOUNT_MASK) == Buffer::BUF_REFCOUNT_MASK), MODULE_BUFMGR,
-                            ErrMsg("refcount in buffer desc is overflow, state:%lu", bufState));
-        break;
+
+        /* Cold path: CAS-decrement refcount. Do not clear BUF_MAY_DEFER here;
+         * that flag is cleared by ApplyDeferredPins once the arena has been
+         * drained under the header lock. */
+        uint64 newState = bufState - Buffer::BUF_REFCOUNT_ONE;
+        if (GsAtomicCompareExchangeU64(&state, &bufState, newState)) {
+            StorageReleasePanic(((bufState & Buffer::BUF_REFCOUNT_MASK) == 0), MODULE_BUFMGR,
+                ErrMsg("refcount in buffer desc underflow, state:%lu", bufState));
+            return;
+        }
     }
 }
 
 HOTFUNCTION void BufferDesc::UnpinForAio()
 {
-    SharedUnpin();
+    /* Paired with PinForAio: no entry, forced CAS-only path. */
+    SharedUnpin(nullptr);
 }
 
 /*

@@ -27,6 +27,8 @@
 
 namespace DSTORE {
 
+struct PrivateRefCountEntry;
+
 namespace Buffer {
 /*
  * Buffer state is a single 64-bit variable where following data is combined.
@@ -60,6 +62,11 @@ enum BufFlagBit : uint8 {
     BUF_PO_SHARE_NO_READ_COPY_BIT = 50,
     BUF_REPLAY_IN_PROGRESS_BIT = 51,
     BUF_READ_AUTHORITY_LOCKLESS_BIT = 52,
+    /* Shared-pin arena: set when refcount has crossed BUF_DEFER_THRESHOLD and
+     * future pins/unpins may use the shared-pin arena instead of mutating
+     * this->state directly. Must be reconciled via ApplyDeferredPins under
+     * BUF_LOCKED before refcount can be trusted. */
+    BUF_MAY_DEFER_BIT = 39,
 };
 
 constexpr uint32 BUF_REFCOUNT_BIT_NUM = 32;
@@ -94,6 +101,36 @@ constexpr uint64 BUF_IS_WRITING_WAL = (1ULL << BUF_IS_WRITING_WAL_BIT);
 /* pls mod GetBufSingleNodeFlagString and vars below if new flag is added */
 
 constexpr uint64 BUF_READ_AUTHORITY_LOCKLESS = (1ULL << BUF_READ_AUTHORITY_LOCKLESS_BIT);
+
+constexpr uint64 BUF_MAY_DEFER = (1ULL << BUF_MAY_DEFER_BIT);
+
+/* Shared-pin arena geometry. The arena is a 2-D table of atomic slots,
+ * partitioned to spread cacheline traffic: each (partition, slot) occupies
+ * its own cacheline thanks to SHARED_PIN_SLOT_SPACING. A pin publishes a
+ * BufferDesc* into an empty slot within its partition; an unpin clears it.
+ * Reconciliation under BUF_LOCKED scans only the buffer's own partition. */
+constexpr uint32 SHARED_PIN_NUM_PARTITIONS = 128;
+constexpr uint32 SHARED_PIN_SLOTS_PER_PARTITION = 4096;
+constexpr uint32 SHARED_PIN_SLOT_SPACING = 8;
+/* Once the shared refcount reaches this value, publish BUF_MAY_DEFER so
+ * subsequent pins take the arena path. */
+constexpr uint64 BUF_DEFER_THRESHOLD = 2;
+
+/* A single arena slot holds a BufferDesc* reinterpreted as u64 (0 == empty).
+ * Slots are spaced SHARED_PIN_SLOT_SPACING apart so consecutive in-use slots
+ * land on distinct cachelines. */
+struct SharedPinArena : public BaseObject {
+    gs_atomic_uint64 pins[SHARED_PIN_NUM_PARTITIONS]
+                         [SHARED_PIN_SLOTS_PER_PARTITION * SHARED_PIN_SLOT_SPACING];
+};
+
+/* Global arena; allocated by BufMgr::Init, freed by BufMgr::Destroy.
+ * nullptr until init has run — callers must tolerate that (fall back to CAS). */
+extern SharedPinArena *g_sharedPinArena;
+
+/* Public init/destroy; BufMgr calls these. Idempotent. */
+void InitSharedPinArena();
+void DestroySharedPinArena();
 
 /*
  * Only refcount (low 32 bits) can't be clear, the high 32 bits should be clear
@@ -985,8 +1022,10 @@ public:
     void UnpinForAio();
 
 private:
-    void SharedPin();
-    void SharedUnpin();
+    /* entry == nullptr forces the CAS path (skip arena publish/drain). Used
+     * by PinForAio/UnpinForAio where no PrivateRefCountEntry is tracked. */
+    void SharedPin(PrivateRefCountEntry *entry);
+    void SharedUnpin(PrivateRefCountEntry *entry);
     const char *GetBufSingleNodeFlagString(uint64 bufFlagBit) const;
     const char *GetBufMultiNodeFlagString(uint64 bufFlagBit) const;
     void PrintBufSingleFlagByState(uint64 bufferState, StringInfoData *dumpInfo, uint8 *flagCnt);

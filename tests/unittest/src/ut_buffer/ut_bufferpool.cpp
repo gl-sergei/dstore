@@ -1348,7 +1348,19 @@ void UTBufferPoolTest::multithread_read_test(const TestThreadContext &thd_ctx, b
      * is read.
      */
     if (check_ref_count) {
-        ASSERT_EQ(buf->GetRefcount(), BPOOL_MULTITHREAD_NUM_OF_THREADS);
+        /* Once BUF_MAY_DEFER is set, concurrent pins publish into the
+         * shared-pin arena instead of state.refcount, so GetRefcount()
+         * alone undercounts the true pin count. LockHdr() drains the arena
+         * (via ApplyDeferredPins) and folds those pins back into
+         * state.refcount, giving a trustworthy value to read.
+         *
+         * Snapshot the refcount while holding the header lock, then release
+         * it before asserting — ASSERT_EQ returns from the function on
+         * failure, which would strand the spinlock held. */
+        uint64 hdrState = buf->LockHdr();
+        uint64 refcount = buf->GetRefcount();
+        buf->UnlockHdr(hdrState);
+        ASSERT_EQ(refcount, BPOOL_MULTITHREAD_NUM_OF_THREADS);
     }
 
     /*

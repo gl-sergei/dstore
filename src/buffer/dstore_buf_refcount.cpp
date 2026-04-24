@@ -31,7 +31,11 @@ BufPrivateRefCount::BufPrivateRefCount()
       m_private_refcount_hash(nullptr),
       m_private_refcount_overflowed(0),
       m_private_refcount_clock(0)
-{}
+{
+    for (uint32 i = 0; i < Buffer::SHARED_PIN_NUM_PARTITIONS; ++i) {
+        m_lastDeferredSlots[i] = -1;
+    }
+}
 
 PrivateRefCountEntry *BufPrivateRefCount::PGetPrivateRefcountEntryFast(BufferDesc *bufferDesc,
                                                                        PrivateRefCountEntry *&freeEntry)
@@ -89,6 +93,7 @@ RETRY:
     }
 
     hashEnt->refcount = arrayEnt->refcount;
+    hashEnt->arenaSlotIdx = arrayEnt->arenaSlotIdx;
     return arrayEnt;
 }
 
@@ -123,6 +128,7 @@ PrivateRefCountEntry *BufPrivateRefCount::PGetPrivateRefcountEntrySlow(BufferDes
             /* add entry into the free array slot */
             freeEntry->buffer = bufferDesc;
             freeEntry->refcount = 0;
+            freeEntry->arenaSlotIdx = -1;
 
             return freeEntry;
         } else {
@@ -135,6 +141,7 @@ PrivateRefCountEntry *BufPrivateRefCount::PGetPrivateRefcountEntrySlow(BufferDes
             /* fill the now free array slot */
             arrayEnt->buffer = bufferDesc;
             arrayEnt->refcount = 0;
+            arrayEnt->arenaSlotIdx = -1;
 
             m_private_refcount_overflowed++;
 
@@ -153,6 +160,7 @@ PrivateRefCountEntry *BufPrivateRefCount::PGetPrivateRefcountEntrySlow(BufferDes
             }
             freeEntry->buffer = bufferDesc;
             freeEntry->refcount = res->refcount;
+            freeEntry->arenaSlotIdx = res->arenaSlotIdx;
 
             /* delete from hashtable */
             (void)hash_search(m_private_refcount_hash, static_cast<void *>(&bufferDesc), HASH_REMOVE, &found);
@@ -172,6 +180,7 @@ PrivateRefCountEntry *BufPrivateRefCount::PGetPrivateRefcountEntrySlow(BufferDes
             if (res != nullptr) {
                 arrayEnt->buffer = res->buffer;
                 arrayEnt->refcount = res->refcount;
+                arrayEnt->arenaSlotIdx = res->arenaSlotIdx;
             }
 
             /* and remove the old entry */
@@ -187,10 +196,13 @@ PrivateRefCountEntry *BufPrivateRefCount::PGetPrivateRefcountEntrySlow(BufferDes
 void BufPrivateRefCount::ForgetPrivateRefcountEntry(PrivateRefCountEntry *ref)
 {
     StorageAssert(ref->refcount == 0);
+    /* SharedUnpin must have already cleared our arena slot. */
+    StorageAssert(ref->arenaSlotIdx < 0);
 
     if (ref >= &m_private_refcount_array[0] &&
         ref < &m_private_refcount_array[REFCOUNT_ARRAY_ENTRIES]) {
         ref->buffer = INVALID_BUFFER_DESC;
+        ref->arenaSlotIdx = -1;
     } else {
         bool found = false;
         BufferDesc* bufferDesc = ref->buffer;
@@ -208,6 +220,11 @@ void BufPrivateRefCount::Initialize()
     errno_t rc = memset_s(m_private_refcount_array, sizeof(m_private_refcount_array), 0,
         sizeof(m_private_refcount_array));
     storage_securec_check(rc, "\0", "\0");
+    /* memset_s zeroed arenaSlotIdx, but 0 is a valid arena slot. -1 means
+     * "this (thread, buffer) has no arena pin". */
+    for (Size i = 0; i < REFCOUNT_ARRAY_ENTRIES; ++i) {
+        m_private_refcount_array[i].arenaSlotIdx = -1;
+    }
 
     ctl.keysize = sizeof(BufferDesc*);
     ctl.entrysize = sizeof(PrivateRefCountEntry);
@@ -236,6 +253,7 @@ PrivateRefCountEntry *BufPrivateRefCount::GetPrivateRefcount(BufferDesc *bufferD
             /* add entry into the free array slot */
             freeEntry->buffer = bufferDesc;
             freeEntry->refcount = 0;
+            freeEntry->arenaSlotIdx = -1;
 
             return freeEntry;
         }
