@@ -192,7 +192,7 @@ public:
 
     bool IsInit() override
     {
-        return static_cast<InstanceState>(m_instanceState.load(std::memory_order_release)) == InstanceState::ACTIVE;
+        return static_cast<InstanceState>(m_instanceState.load(std::memory_order_acquire)) == InstanceState::ACTIVE;
     }
 
     bool IsBootstrapping() const
@@ -251,7 +251,7 @@ public:
 
     bool CanAcceptNewConnection() override
     {
-        return static_cast<InstanceState>(m_instanceState.load(std::memory_order_release)) == InstanceState::ACTIVE;
+        return static_cast<InstanceState>(m_instanceState.load(std::memory_order_acquire)) == InstanceState::ACTIVE;
     }
 
     void StopAcceptNewConnection() override

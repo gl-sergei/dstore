@@ -24,6 +24,7 @@
 #include <unordered_set>
 #include <mutex>
 #include <map>
+#include <string>
 #include "tpcc_table.h"
 
 class DstoreTableHandler;

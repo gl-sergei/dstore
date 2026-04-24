@@ -62,7 +62,11 @@ public:
 
     static inline LockRequestLinker *GetLinkerFromLevelNode(dlist_node *node, int32 level)
     {
-        return dlist_container(LockRequestLinker, defaultNodesSpace[level], node);
+        /* Cannot use dlist_container here because defaultNodesSpace[level] has a
+         * runtime index, which is not a constant expression for offsetof.
+         * Instead, compute the offset manually: base of defaultNodesSpace + level * sizeof(dlist_node). */
+        size_t offset = offsetof(LockRequestLinker, defaultNodesSpace) + static_cast<size_t>(level) * sizeof(dlist_node);
+        return reinterpret_cast<LockRequestLinker *>(reinterpret_cast<char *>(node) - offset);
     }
 
     inline dlist_node *GetDlistNode()

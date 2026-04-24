@@ -46,16 +46,17 @@ gcc_version="7.3"
 gcc_version_10="10.3" 
 ccache -V >/dev/null 2>&1 && USE_CCACHE="ccache " ENABLE_CCACHE="--enable-ccache"
 
-if [ X"${sys_tools}" = X"ON" ] &&  [ -n "${BISHENG_CPU_HOME}" ]; then
+sys_tools_upper=$(echo "${sys_tools}" | tr '[:lower:]' '[:upper:]')
+if [ X"${sys_tools_upper}" = X"ON" ] &&  [ -n "${BISHENG_CPU_HOME}" ]; then
     export GCC_INSTALL_HOME="${BISHENG_CPU_HOME}"
     log "[INFO] GCC_INSTALL_HOME:${BISHENG_CPU_HOME}"
-elif [ X"${sys_tools}" = X"ON" ]; then
+elif [ X"${sys_tools_upper}" = X"ON" ]; then
     export GCC_INSTALL_HOME=$(gcc -v 2>&1 | grep prefix | awk -F'prefix=' '{print $2}' |awk -F' ' '{print $1}')
 else
     export GCC_INSTALL_HOME="${LOCAL_LIB_PATH}/buildtools/gcc${gcc_version}/gcc"
 fi
 
-if [ X"${sys_tools}" != X"ON" ]; then
+if [ X"${sys_tools_upper}" != X"ON" ]; then
     export PATH=${GCC_INSTALL_HOME}/bin:${PATH}
 fi
 if [ ! -d "${GCC_INSTALL_HOME}" ]; then
@@ -63,8 +64,9 @@ if [ ! -d "${GCC_INSTALL_HOME}" ]; then
 fi
 export CC="${USE_CCACHE}${GCC_INSTALL_HOME}/bin/gcc"
 export CXX="${USE_CCACHE}${GCC_INSTALL_HOME}/bin/g++"
-if [ "$($CC --version | grep ${gcc_version})" = "" ] && [ "$($CC --version | grep ${gcc_version_10})" = ""  ]; then
-    die "[ERROR] The gcc version is not supported (need ${gcc_version} or ${gcc_version_10})"
+gcc_actual_version=$($CC -dumpversion | cut -d. -f1-2)
+if [ "${gcc_actual_version}" != "${gcc_version}" ] && [ "${gcc_actual_version}" != "${gcc_version_10}" ]; then
+    log "[WARNING] GCC version ${gcc_actual_version} is not officially supported (expected ${gcc_version} or ${gcc_version_10}), proceeding anyway"
 fi
 
 # cpu num

@@ -206,7 +206,7 @@ StorageMemoryMgr *StorageInstance::GetMemoryMgr()
 
 StoragePdb *StorageInstance::GetPdb(PdbId pdbId)
 {
-    if (m_pdb != nullptr && pdbId >= PDB_START_ID && pdbId <= PDB_MAX_ID) {
+    if (pdbId >= PDB_START_ID && pdbId <= PDB_MAX_ID) {
         return m_pdb[StoragePdb::GetPdbIndex(pdbId)];
     }
     return nullptr;

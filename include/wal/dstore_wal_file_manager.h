@@ -253,7 +253,7 @@ public:
 
     inline void SetPauseWalFileRecycleFlag(bool flag)
     {
-        m_pauseWalFileRecycle.store(flag, std::memory_order_acquire);
+        m_pauseWalFileRecycle.store(flag, std::memory_order_release);
         ErrLog(DSTORE_LOG, MODULE_WAL, ErrMsg("Set pauseWalFileRecycleFlag to %s, pdbId: %u, walId: %lu.",
             flag ? "true" : "false", m_initWalFilesPara.pdbId, m_initWalFilesPara.walId));
     }

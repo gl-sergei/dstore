@@ -21,6 +21,7 @@
  *
  * ---------------------------------------------------------------------------------------
  */
+#include <string>
 #include "common/algorithm/dstore_tuplesort.h"
 #include "common/algorithm/dstore_logtape.h"
 #include "common/algorithm/dstore_sorttemplate.h"

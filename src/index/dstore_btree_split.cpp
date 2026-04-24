@@ -961,7 +961,7 @@ RetStatus BtreeSplit::LinkNewRightToOrigRightIfNeeded(BufferDesc **oldRightBuf)
             m_bufMgr->UnlockAndRelease(*oldRightBuf, BufferPoolUnlockContentFlag::DontCheckCrc());
             BufferDesc *oriRightLeftBuf =
                 Btree::ReadAndCheckBtrPage(origRightLeft, LW_SHARED, m_bufMgr, this->GetPdbId(), false);
-            if (STORAGE_VAR_NULL(oriRightLeftBuf)) {
+            if (!STORAGE_VAR_NULL(oriRightLeftBuf)) {
                 BtrPage *oriRightLeftPage = static_cast<BtrPage *>(oriRightLeftBuf->GetPage());
                 ErrLog(DSTORE_LOG, MODULE_INDEX,
                         ErrMsg("Left page info of origin right page: bufferdesc status = %lu, responseType = "

@@ -1294,9 +1294,6 @@ bool WalRecovery::IsDispatchFinish()
 
 bool WalRecovery::IsAllRedoQueueEmpty()
 {
-    if (m_parallelRedoWorkers == nullptr) {
-        return true;
-    }
     bool res = true;
     for (uint32 i = 0; i < m_redoWorkerNum; i++) {
         if (m_parallelRedoWorkers[i] == nullptr) {

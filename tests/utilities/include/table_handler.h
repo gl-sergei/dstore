@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <atomic>
 #include <map>
+#include <string>
 #include "securec.h"
 
 #include "framework/dstore_instance_interface.h"

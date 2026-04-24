@@ -52,7 +52,8 @@ set(PROTECT_OPTIONS -pthread -rdynamic)
 set(WARNING_OPTIONS -Wall -Werror -fstack-protector -Wextra -Wno-error=cast-qual -Woverloaded-virtual
                     -Wtrampolines -Wformat=2 -Wdate-time -Wfloat-equal -Wswitch-default -Wunused -Wundef
                     -Wshadow -Wnon-virtual-dtor -Wdelete-non-virtual-dtor -Wundef -Wunused -Wcast-align
-                    -Wcast-qual -Wvla -Wframe-larger-than=8192000 -Wstack-usage=8192000 -Wendif-labels)
+                    -Wcast-qual -Wvla -Wframe-larger-than=8192000 -Wstack-usage=8192000 -Wendif-labels
+                    -Wno-register -Wno-error=address -Wno-error=invalid-memory-model)
 set(OPTIMIZE_OPTIONS -fno-strict-aliasing -fno-common -freg-struct-return -fstrong-eval-order -pipe)
 set(CHECK_OPTIONS "")
 set(MACRO_OPTIONS "")

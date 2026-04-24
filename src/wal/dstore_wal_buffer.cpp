@@ -316,7 +316,7 @@ void WalStreamBuffer::SetInsertCtl(uint64 endPlsn)
     uint64 curEndBytePos;
     uint64 newEndBytePos = WalPlsnToBytePos(endPlsn);
     do {
-        curEndBytePos = m_insertCtl.endBytePos.load(std::memory_order_release);
+        curEndBytePos = m_insertCtl.endBytePos.load(std::memory_order_acquire);
     } while (curEndBytePos < newEndBytePos &&
              !(m_insertCtl.endBytePos.compare_exchange_weak(curEndBytePos, newEndBytePos)));
 }

@@ -120,7 +120,7 @@ public:
 
     void SetLocalBarrierCsnMin(CommitSeqNo csn)
     {
-        m_localBarrierCsnMin.store(csn, std::memory_order_acquire);
+        m_localBarrierCsnMin.store(csn, std::memory_order_release);
     }
 
     inline CommitSeqNo GetLocalBarrierCsnMin() const

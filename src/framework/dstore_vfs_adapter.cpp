@@ -26,6 +26,7 @@
  */
 
 #include <csignal>
+#include <string>
 #include "framework/dstore_instance.h"
 #include "config/dstore_vfs_config.h"
 #include "errorcode/dstore_framework_error_code.h"
