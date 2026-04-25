@@ -248,6 +248,88 @@ TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpin)
     delete[] workThrd;
 }
 
+static void *RunTaskPinUnpinBufferNested(void *task)
+{
+    BufferMgrFakeStorageInstance *instance = (BufferMgrFakeStorageInstance *)g_storageInstance;
+    instance->ThreadSetupAndRegister();
+    UTBufTask *utTask = static_cast<UTBufTask *>(task);
+
+    for (uint32 j = 0; j < utTask->loopCount; ++j) {
+        utTask->buffers[0].Pin();
+        utTask->buffers[1].Pin();
+        utTask->buffers[2].Pin();
+        utTask->buffers[2].Unpin();
+        utTask->buffers[1].Unpin();
+        utTask->buffers[0].Unpin();
+    }
+    instance->ThreadUnregisterAndExit();
+    return nullptr;
+}
+
+/*
+ * Nested hot-buffer pin/unpin microbenchmark.
+ *
+ * Every worker thread holds 3 distinct buffers pinned simultaneously,
+ * unpinning them LIFO:
+ *
+ *   Pin(A), Pin(B), Pin(C), Unpin(C), Unpin(B), Unpin(A)
+ *
+ * Mirrors the call shape of an index descent or a heap+TOAST access where
+ * a backend stacks pins on independent pages. All threads share the same
+ * three buffers, so each one is hammered by every thread — the same hot
+ * shape as the 1-deep bench but spread over three independent pin chains.
+ *
+ * Disabled by default; run explicitly:
+ *   UT_BENCH_THREADS=12 UT_BENCH_ITERS=2000000 \
+ *     ./unittest --gtest_also_run_disabled_tests \
+ *                --gtest_filter=*BenchHotPinUnpinNested*
+ */
+TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpinNested)
+{
+    const uint32 workThreads = GetEnvUint("UT_BENCH_THREADS", 64);
+    const uint32 iters = GetEnvUint("UT_BENCH_ITERS", 2000000);
+    constexpr uint32 BUF_NUM = 3;
+
+    UTBufTask *utTask = (UTBufTask *)DstoreMemoryContextAlloc(
+        UTBufferLockFree::m_ut_memory_context, sizeof(UTBufTask));
+    utTask->bufNum = BUF_NUM;
+    utTask->loopCount = iters;
+    utTask->buffers = (BufferDesc *)DstoreMemoryContextAlloc(
+        UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc) * BUF_NUM);
+    StorageAssert(utTask != nullptr && utTask->buffers != nullptr);
+    for (uint32 i = 0; i < BUF_NUM; ++i) {
+        utTask->buffers[i].state = 0;
+        PageId pageId{ 1, i };
+        BufferTag bufTag(1, pageId);
+        utTask->buffers[i].bufTag = bufTag;
+    }
+
+    std::thread *workThrd = new std::thread[workThreads];
+    auto t0 = std::chrono::steady_clock::now();
+    for (uint32 i = 0; i < workThreads; ++i) {
+        workThrd[i] = std::thread(RunTaskPinUnpinBufferNested, static_cast<void *>(utTask));
+        pthread_setname_np(workThrd[i].native_handle(), "BenchHotPinUnpinNested");
+    }
+    WaitTaskThrdFinish(workThrd, workThreads);
+    auto t1 = std::chrono::steady_clock::now();
+
+    double seconds = std::chrono::duration<double>(t1 - t0).count();
+    uint64 totalOps = static_cast<uint64>(workThreads) * iters * (BUF_NUM * 2); /* pin+unpin per buffer */
+    double opsPerSec = totalOps / seconds;
+    double nsPerOp = (seconds * 1e9) / static_cast<double>(totalOps);
+
+    std::printf("[BenchHotPinUnpinNested] threads=%u iters/thread=%u bufs=%u total_ops=%lu "
+                "elapsed=%.3fs ops/sec=%.2fM ns/op=%.2f\n",
+                workThreads, iters, BUF_NUM, (unsigned long)totalOps,
+                seconds, opsPerSec / 1e6, nsPerOp);
+    std::fflush(stdout);
+
+    for (uint32 i = 0; i < BUF_NUM; ++i) {
+        ASSERT_EQ(utTask->buffers[i].GetRefcount(), 0u);
+    }
+    delete[] workThrd;
+}
+
 /*
  * Btree-lookup-shaped microbenchmark.
  *
