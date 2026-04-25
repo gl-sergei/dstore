@@ -241,7 +241,7 @@ inline void WalRecovery::FillBatchRedoEntry(RedoWalRecordEntry &entry,
     entry.walRecordInfo.walRecord = walRecord;
 }
 
-inline void WalRecovery::AddPlsnSyncer(RedoWalRecordEntry &recordEntry, uint32 &recordEntryNum, uint64 recordEndPlsn)
+void WalRecovery::AddPlsnSyncer(RedoWalRecordEntry &recordEntry, uint32 &recordEntryNum, uint64 recordEndPlsn)
 {
     recordEntry.recordEndPlsn = recordEndPlsn;
     recordEntry.ctx = {INVALID_XID, INVALID_WAL_ID, INVALID_PDB_ID, INVALID_PLSN};

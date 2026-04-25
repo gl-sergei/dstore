@@ -479,7 +479,7 @@ private:
     RetStatus RedoWalRecord(WalRecordRedoContext *redoCtx, const WalRecord *walRecord, RedoWalRecordBuffPara *buffPara);
     inline void FillBatchRedoEntry(RedoWalRecordEntry &entry,
         const WalRecordRedoContext &redoCtx, const WalRecord *walRecord) const;
-    inline void AddPlsnSyncer(RedoWalRecordEntry &recordEntry, uint32 &recordEntryNum, uint64 recordEndPlsn);
+    void AddPlsnSyncer(RedoWalRecordEntry &recordEntry, uint32 &recordEntryNum, uint64 recordEndPlsn);
     RetStatus Redo(uint64 *lastGroupEndPlsn);
     RetStatus RedoLoadWalToBuffer(uint64 loadStartPlsn);
     WalRecordReader *RedoAllocateWalReader(uint64 readStartPlsn);
