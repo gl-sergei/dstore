@@ -525,6 +525,15 @@ void DstorePfree(void *pointer) noexcept
 {
     StorageAssert(DstorePointerIsValid(pointer));
 
+    /* BaseObject's operator new routes through DstorePallocAligned so the object
+     * meets __STDCPP_DEFAULT_NEW_ALIGNMENT__. DstorePfreeExt callers on such
+     * objects land here with the aligned-header prefix still in front of the
+     * pointer — detect the magic and dispatch to the aligned free path. */
+    if (DstoreIsAlignedMem(pointer)) {
+        DstorePfreeAlignedImpl(pointer);
+        return;
+    }
+
     DstoreAllocSetContext *allocSetContext = ChunkGetAllocSetContext(pointer);
     UNUSE_PARAM DstoreMemoryContext context = allocSetContext->GetMemoryContext();
 
