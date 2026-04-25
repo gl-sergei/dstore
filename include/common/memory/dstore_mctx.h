@@ -196,7 +196,9 @@ public:
         UNUSE_PARAM const std::nothrow_t& nothrow = std::nothrow, bool bootstrap = false) noexcept
     {
         if (likely(bootstrap == false)) {
-            return DstoreMemoryContextAllocDebug(parentMctx, size, file, line);
+            /* Must match __STDCPP_DEFAULT_NEW_ALIGNMENT__ (16 on x86_64) so the compiler
+             * can emit aligned SIMD moves inside member constructors. */
+            return DstorePallocAligned(size, __STDCPP_DEFAULT_NEW_ALIGNMENT__, parentMctx);
         } else {
             return malloc(size);
         }
@@ -205,7 +207,7 @@ public:
     static void *operator new[](Size size, DstoreMemoryContext parentMctx, const char *file, int line,
         UNUSE_PARAM const std::nothrow_t& nothrow = std::nothrow) noexcept
     {
-        return DstoreMemoryContextAllocDebug(parentMctx, size, file, line);
+        return DstorePallocAligned(size, __STDCPP_DEFAULT_NEW_ALIGNMENT__, parentMctx);
     }
 
     static void *operator new(UNUSE_PARAM size_t size, void *start, UNUSE_PARAM const char *file, UNUSE_PARAM int line,
