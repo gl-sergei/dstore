@@ -69,11 +69,11 @@ if (ENABLE_FUZZ STREQUAL "ON")
 endif()
 
 set(unittest_link_directories
-    ${GTEST_LIB_PATH} ${MOCKCPP_LIB_PATH} ${LIBEVENT_LIB_PATH}
+    ${GTEST_LIB_PATH} ${MOCKCPP_LIB_PATH} ${LIBEVENT_LIB_PATH} ${SECURE_LIB_PATH}
 )
 
 # This is the whole unit test suite except dstore embedded dir
-set(unittest_link_libs utilities gsutils ${UT_LIBS} mockcpp dstore -lrt -rdynamic -lstdc++ m)
+set(unittest_link_libs utilities gsutils ${UT_LIBS} mockcpp dstore securec -lrt -rdynamic -lstdc++ m)
 add_bintarget(unittest unittest_src_list unittest_include_directories "${unittest_macro_options}" "${unittest_compile_options}" "${unittest_link_options}" "${unittest_link_libs}")
 target_link_directories(unittest PRIVATE ${unittest_link_directories})
 add_dependencies(unittest dstore utilities vfs_config start_config)
