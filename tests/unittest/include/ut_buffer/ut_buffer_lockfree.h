@@ -34,6 +34,7 @@ struct UTBufTask
 {
     uint32 bufNum;
     uint32 loopCount;
+    uint32 thinkPauses;
     BufferDesc *buffers;
 };
 

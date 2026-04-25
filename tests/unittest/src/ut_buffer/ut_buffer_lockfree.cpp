@@ -48,11 +48,40 @@ static uint32 GetEnvUint(const char *name, uint32 fallback)
     return static_cast<uint32>(v);
 }
 
+/* Allows 0 explicitly — for knobs whose "off" value is meaningful. */
+static uint32 GetEnvUintAllowZero(const char *name, uint32 fallback)
+{
+    const char *raw = std::getenv(name);
+    if (raw == nullptr || raw[0] == '\0') {
+        return fallback;
+    }
+    char *end = nullptr;
+    unsigned long v = std::strtoul(raw, &end, 10);
+    if (end == raw) {
+        return fallback;
+    }
+    return static_cast<uint32>(v);
+}
+
+static inline void ThinkSpin(uint32 n)
+{
+    for (uint32 i = 0; i < n; ++i) {
+#if defined(__x86_64__) || defined(__i386__)
+        __builtin_ia32_pause();
+#elif defined(__aarch64__)
+        asm volatile("yield" ::: "memory");
+#else
+        asm volatile("" ::: "memory");
+#endif
+    }
+}
+
 UTBufTask *UTBufferLockFree::InitTask()
 {
     UTBufTask *utTask = (UTBufTask *)DstoreMemoryContextAlloc(UTBufferLockFree::m_ut_memory_context, sizeof(UTBufTask));
     utTask->bufNum = 1000;
     utTask->loopCount = 5000;
+    utTask->thinkPauses = 0;
     utTask->buffers = (BufferDesc *)DstoreMemoryContextAlloc(UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc) * utTask->bufNum);
     StorageAssert(utTask != nullptr && utTask->buffers != nullptr);
     m_fileId = 1;
@@ -75,6 +104,7 @@ void *UTBufferLockFree::RunTaskPinUnpinBuffer(void *task)
     for (uint32 i = 0; i < utTask->bufNum; ++i) {
         for (uint32 j = 0; j < utTask->loopCount; ++j) {
             utTask->buffers[i].Pin();
+            ThinkSpin(utTask->thinkPauses);
             utTask->buffers[i].Unpin();
         }
     }
@@ -203,19 +233,25 @@ TEST_F(UTBufferLockFree, TestMixedPinLockBuffer_TIER1)
  * loop — the pathological case the shared-pin arena is meant to improve.
  *
  * Disabled by default; run explicitly:
- *   UT_BENCH_THREADS=64 UT_BENCH_ITERS=5000000 \
+ *   UT_BENCH_THREADS=64 UT_BENCH_ITERS=5000000 UT_BENCH_THINK_PAUSES=0 \
  *     ./dstore_unittest --gtest_also_run_disabled_tests \
  *                       --gtest_filter=*BenchHotPinUnpin*
+ *
+ * UT_BENCH_THINK_PAUSES injects N PAUSE/YIELD ops between each Pin and the
+ * corresponding Unpin to simulate per-page work (record search, visibility
+ * checks). 0 = pure synchronization measurement.
  */
 TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpin)
 {
     const uint32 workThreads = GetEnvUint("UT_BENCH_THREADS", 64);
     const uint32 iters = GetEnvUint("UT_BENCH_ITERS", 5000000);
+    const uint32 thinkPauses = GetEnvUintAllowZero("UT_BENCH_THINK_PAUSES", 0);
 
     UTBufTask *utTask = (UTBufTask *)DstoreMemoryContextAlloc(
         UTBufferLockFree::m_ut_memory_context, sizeof(UTBufTask));
     utTask->bufNum = 1;
     utTask->loopCount = iters;
+    utTask->thinkPauses = thinkPauses;
     utTask->buffers = (BufferDesc *)DstoreMemoryContextAlloc(
         UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc));
     StorageAssert(utTask != nullptr && utTask->buffers != nullptr);
@@ -238,9 +274,9 @@ TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpin)
     double opsPerSec = totalOps / seconds;
     double nsPerOp = (seconds * 1e9) / static_cast<double>(totalOps);
 
-    std::printf("[BenchHotPinUnpin] threads=%u iters/thread=%u total_ops=%lu "
+    std::printf("[BenchHotPinUnpin] threads=%u iters/thread=%u think_pauses=%u total_ops=%lu "
                 "elapsed=%.3fs ops/sec=%.2fM ns/op=%.2f\n",
-                workThreads, iters, (unsigned long)totalOps,
+                workThreads, iters, thinkPauses, (unsigned long)totalOps,
                 seconds, opsPerSec / 1e6, nsPerOp);
     std::fflush(stdout);
 
@@ -256,8 +292,11 @@ static void *RunTaskPinUnpinBufferNested(void *task)
 
     for (uint32 j = 0; j < utTask->loopCount; ++j) {
         utTask->buffers[0].Pin();
+        ThinkSpin(utTask->thinkPauses);
         utTask->buffers[1].Pin();
+        ThinkSpin(utTask->thinkPauses);
         utTask->buffers[2].Pin();
+        ThinkSpin(utTask->thinkPauses);
         utTask->buffers[2].Unpin();
         utTask->buffers[1].Unpin();
         utTask->buffers[0].Unpin();
@@ -280,20 +319,25 @@ static void *RunTaskPinUnpinBufferNested(void *task)
  * shape as the 1-deep bench but spread over three independent pin chains.
  *
  * Disabled by default; run explicitly:
- *   UT_BENCH_THREADS=12 UT_BENCH_ITERS=2000000 \
+ *   UT_BENCH_THREADS=12 UT_BENCH_ITERS=2000000 UT_BENCH_THINK_PAUSES=0 \
  *     ./unittest --gtest_also_run_disabled_tests \
  *                --gtest_filter=*BenchHotPinUnpinNested*
+ *
+ * UT_BENCH_THINK_PAUSES injects N PAUSE/YIELD ops after each Pin to simulate
+ * per-page work. 0 = pure synchronization measurement.
  */
 TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpinNested)
 {
     const uint32 workThreads = GetEnvUint("UT_BENCH_THREADS", 64);
     const uint32 iters = GetEnvUint("UT_BENCH_ITERS", 2000000);
+    const uint32 thinkPauses = GetEnvUintAllowZero("UT_BENCH_THINK_PAUSES", 0);
     constexpr uint32 BUF_NUM = 3;
 
     UTBufTask *utTask = (UTBufTask *)DstoreMemoryContextAlloc(
         UTBufferLockFree::m_ut_memory_context, sizeof(UTBufTask));
     utTask->bufNum = BUF_NUM;
     utTask->loopCount = iters;
+    utTask->thinkPauses = thinkPauses;
     utTask->buffers = (BufferDesc *)DstoreMemoryContextAlloc(
         UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc) * BUF_NUM);
     StorageAssert(utTask != nullptr && utTask->buffers != nullptr);
@@ -318,9 +362,9 @@ TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpinNested)
     double opsPerSec = totalOps / seconds;
     double nsPerOp = (seconds * 1e9) / static_cast<double>(totalOps);
 
-    std::printf("[BenchHotPinUnpinNested] threads=%u iters/thread=%u bufs=%u total_ops=%lu "
+    std::printf("[BenchHotPinUnpinNested] threads=%u iters/thread=%u bufs=%u think_pauses=%u total_ops=%lu "
                 "elapsed=%.3fs ops/sec=%.2fM ns/op=%.2f\n",
-                workThreads, iters, BUF_NUM, (unsigned long)totalOps,
+                workThreads, iters, BUF_NUM, thinkPauses, (unsigned long)totalOps,
                 seconds, opsPerSec / 1e6, nsPerOp);
     std::fflush(stdout);
 
@@ -344,9 +388,12 @@ TEST_F(UTBufferLockFree, DISABLED_BenchHotPinUnpinNested)
  *
  * Disabled by default; run explicitly:
  *   UT_BENCH_THREADS=64 UT_BENCH_ITERS=1000000 \
- *   UT_BENCH_FANOUT_L1=8 UT_BENCH_FANOUT_L2=16 \
+ *   UT_BENCH_FANOUT_L1=8 UT_BENCH_FANOUT_L2=16 UT_BENCH_THINK_PAUSES=0 \
  *     ./unittest --gtest_also_run_disabled_tests \
  *                --gtest_filter=*BenchBtreeLookup*
+ *
+ * UT_BENCH_THINK_PAUSES injects N PAUSE/YIELD ops after each Pin to simulate
+ * per-page work (record search, visibility checks). 0 = pure synchronization.
  */
 struct UTBtreeBenchTree
 {
@@ -356,6 +403,7 @@ struct UTBtreeBenchTree
     uint32 fanoutL1;
     uint32 fanoutL2;
     uint32 itersPerThread;
+    uint32 thinkPauses;
 };
 
 static void *RunTaskBtreeLookup(void *arg)
@@ -375,10 +423,13 @@ static void *RunTaskBtreeLookup(void *arg)
         BufferDesc *n2 = &t->level2[c1 * t->fanoutL2 + c2];
 
         t->root->Pin();
+        ThinkSpin(t->thinkPauses);
         n1->Pin();
+        ThinkSpin(t->thinkPauses);
         t->root->Unpin();
 
         n2->Pin();
+        ThinkSpin(t->thinkPauses);
         n1->Unpin();
         n2->Unpin();
     }
@@ -393,6 +444,7 @@ TEST_F(UTBufferLockFree, DISABLED_BenchBtreeLookup)
     const uint32 iters = GetEnvUint("UT_BENCH_ITERS", 1000000);
     const uint32 fanoutL1 = GetEnvUint("UT_BENCH_FANOUT_L1", 8);
     const uint32 fanoutL2 = GetEnvUint("UT_BENCH_FANOUT_L2", 16);
+    const uint32 thinkPauses = GetEnvUintAllowZero("UT_BENCH_THINK_PAUSES", 0);
 
     const uint32 nL1 = fanoutL1;
     const uint32 nL2 = fanoutL1 * fanoutL2;
@@ -402,6 +454,7 @@ TEST_F(UTBufferLockFree, DISABLED_BenchBtreeLookup)
     tree->fanoutL1 = fanoutL1;
     tree->fanoutL2 = fanoutL2;
     tree->itersPerThread = iters;
+    tree->thinkPauses = thinkPauses;
     tree->root = (BufferDesc *)DstoreMemoryContextAlloc(
         UTBufferLockFree::m_ut_memory_context, sizeof(BufferDesc));
     tree->level1 = (BufferDesc *)DstoreMemoryContextAlloc(
@@ -439,9 +492,9 @@ TEST_F(UTBufferLockFree, DISABLED_BenchBtreeLookup)
     double nsPerOp = (seconds * 1e9) / static_cast<double>(totalOps);
 
     std::printf("[BenchBtreeLookup] threads=%u iters/thread=%u fanoutL1=%u fanoutL2=%u "
-                "lookups=%lu total_ops=%lu elapsed=%.3fs "
+                "think_pauses=%u lookups=%lu total_ops=%lu elapsed=%.3fs "
                 "lookups/sec=%.2fM ops/sec=%.2fM ns/op=%.2f\n",
-                workThreads, iters, fanoutL1, fanoutL2,
+                workThreads, iters, fanoutL1, fanoutL2, thinkPauses,
                 (unsigned long)totalLookups, (unsigned long)totalOps, seconds,
                 lookupsPerSec / 1e6, opsPerSec / 1e6, nsPerOp);
     std::fflush(stdout);
