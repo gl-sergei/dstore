@@ -520,7 +520,7 @@ HOTFUNCTION void BufferDesc::SharedUnpin(PrivateRefCountEntry *entry)
      * own entry holds an arena slot. Read state once to avoid a TOCTOU race
      * between the refcount check and the flag check. */
     {
-        const uint64 snap = GsAtomicReadU64(&state);
+        [[maybe_unused]] const uint64 snap = GsAtomicReadU64(&state);
         StorageAssert((snap & Buffer::BUF_REFCOUNT_MASK) > 0 ||
                       (snap & Buffer::BUF_MAY_DEFER) != 0 ||
                       (entry != nullptr && entry->arenaSlotIdx >= 0));
